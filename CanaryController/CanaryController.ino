@@ -31,7 +31,7 @@
 
 // Interval between audio / phisical warings - change if it's
 // nagging you too often
-unsigned long DELAY_TIME = 20000;  // 20 seconds
+unsigned long DELAY_TIME = 300000;  // 5 mins
 
 // ESDK MQTT server name or IP address
 //const char broker[] = "192.168.0.75";
