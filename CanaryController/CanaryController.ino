@@ -2,15 +2,19 @@
   An Arduino IoT client for DesgnSpark ESDK
   that reacts to environmental CO2 levels
 
-  Version: 0.8
-  Date: 06 December 2021
+  Version: 0.9
+  Date: 10 January 2022
   Author: Peter Milne
 
-  Copywrite 2021 Peter Milne
+  Copywrite 2022 Peter Milne
   Released under GNU GENERAL PUBLIC LICENSE
   Version 3, 29 June 2007
 
  ****************************************************/
+// Un-comment for all debug prints
+// You will also need to attach a serial monitor before
+// the system will start up
+//#define DEBUG
 
 #include <WiFiNINA.h>
 #include "arduino_secrets.h"
@@ -29,10 +33,13 @@
 #define PASS_OUT_CO2 3000
 #define DEAD_CO2 4000
 
-// Interval between audio / phisical warings - change if it's
+#ifdef DEBUG
+unsigned long DELAY_TIME = 20000;  // 20 sec for debug
+#else
+// Interval between audio / physical warnings - change if it's
 // nagging you too often
-unsigned long DELAY_TIME = 300000;  // 5 mins
-
+unsigned long DELAY_TIME = 300000;  // 5 mins for default
+#endif
 // ESDK MQTT server name or IP address
 //const char broker[] = "192.168.0.75";
 const char broker[] = "airquality";
@@ -60,7 +67,9 @@ char ssid[] = SECRET_SSID;  // Network SSID
 char pass[] = SECRET_PASS;  // WPA key
 
 WiFiClient wifiClient;
+long lastReconnectWIFIAttempt = 0;
 PubSubClient mqttClient(wifiClient);
+long lastReconnectMQTTAttempt = 0;
 
 Adafruit_PWMServoDriver pwm = Adafruit_PWMServoDriver();  // Default address 0x40
 
@@ -86,12 +95,32 @@ int prevSensorValue = 0;
 enum states {NORMAL, STUFFY, OPEN_WINDOW, PASS_OUT, THATS_BETTER, DEAD} state = NORMAL;
 enum states previousState = NORMAL;
 
+// Button code
+enum buttons {LEFT_BUTTON = 2, RIGHT_BUTTON = 3};
+enum audioStates {OFF, ON};
+volatile audioStates audioState = ON;
+audioStates prevAudioState = OFF;
+const int isrLED =  10;
+
+int wifiState = WL_IDLE_STATUS;
+
 void setup() {
+  // Setup buttons
+  // initialize digital pin LED_BUILTIN as an output.
+  pinMode(LEFT_BUTTON, INPUT_PULLUP);
+  pinMode(RIGHT_BUTTON, INPUT_PULLUP);
+  pinMode(isrLED, OUTPUT);
+  digitalWrite(isrLED, HIGH);
+  attachInterrupt(digitalPinToInterrupt(LEFT_BUTTON), leftButtonIsr, FALLING);
+  attachInterrupt(digitalPinToInterrupt(RIGHT_BUTTON), rightButtonIsr, FALLING);
+
   Serial.begin(115200);
-//  while (!Serial) {
-//    ; // wait for serial port to connect
-//  }
-  Serial.println("Canary Controller test!");
+#ifdef DEBUG
+  while (!Serial) {
+    ; // wait for serial port to connect
+  }
+#endif
+  Serial.println("Canary Controller");
 
   Serial1.begin(9600);
   while (!Serial1) {
@@ -99,9 +128,8 @@ void setup() {
   }
   Serial.println("Serial1 attached");
 
-  //  EDP stuff
   if (epd.Init() != 0) {
-    Serial.print("e-Paper init failed");
+    Serial.print("e-Paper init failed ");
     return;
   }
   Serial.println("EDP attached");
@@ -111,12 +139,6 @@ void setup() {
 
   // Remove power during this delay to shut down with blank screen
   delay(5000);
-
-  if (epd.Init() != 0) {
-    Serial.print("e-Paper init failed ");
-    return;
-  }
-
   /**
       there are 2 memory areas embedded in the e-paper display
       and once the display is refreshed, the memory area will be auto-toggled,
@@ -143,18 +165,6 @@ void setup() {
   myCanary.ServoInit(pwm, SERVO);
   Serial.println("Servo initialised");
 
-  // Attempt connection to Wifi network
-  Serial.print("Connecting to Wifi: ");
-  Serial.println(ssid);
-  while (WiFi.begin(ssid, pass) != WL_CONNECTED) {
-    // Retry
-    Serial.print(".");
-    delay(5000);
-  }
-
-  Serial.println("You're connected to the network");
-  Serial.println();
-
   Serial.print("Attempting to connect to the MQTT broker: ");
   Serial.println(broker);
 
@@ -165,14 +175,30 @@ void setup() {
   delayStart = millis();
   delayRunning = true;
 
-  delay(2000);
+  delay(5000);
 }
 
 void loop() {
-  if (!mqttClient.connected()) {
-    reconnect();
+  toggleAudio();
+
+  // Attempt to reconnect - Wifi.begin blocks until connect or failure
+  if (WiFi.status() != WL_CONNECTED) {
+    updateEPD();
+    reconnectWiFi();
   }
-  mqttClient.loop();
+
+  if (!mqttClient.connected()) {
+    // Attempt to reconnect without blocking
+    long now = millis();
+    if (now - lastReconnectMQTTAttempt > 5000) {
+      lastReconnectMQTTAttempt = now;
+      if (reconnectMQTT()) {
+        lastReconnectMQTTAttempt = 0;
+      }
+    }
+  } else {
+    mqttClient.loop();
+  }
 
   if (tombstoneFlag) {
     displayTombStone();
@@ -193,35 +219,67 @@ void loop() {
         break;
       case 1: // Stuffy
         Serial.println("Stuffy...");
-        myCanary.Tweet(sfx, STUFFY_TRACK);
+        if (audioState) {
+          myCanary.Tweet(sfx, STUFFY_TRACK);
+        }
         myCanary.Flap(pwm, SERVO);
         myCanary.Flap(pwm, SERVO);
         myCanary.Flap(pwm, SERVO);
         break;
       case 2: // Open a window
         Serial.println("Open a window...");
-        myCanary.Tweet(sfx, OPEN_WINDOW_TRACK);
+        if (audioState) {
+          myCanary.Tweet(sfx, OPEN_WINDOW_TRACK);
+        }
         myCanary.OpenWindow(pwm, SERVO);
         myCanary.OpenWindow(pwm, SERVO);
         myCanary.OpenWindow(pwm, SERVO);
         break;
       case 3: // Pass out
         Serial.println("Pass out...");
-        myCanary.Tweet(sfx, PASS_OUT_TRACK);
+        if (audioState) {
+          myCanary.Tweet(sfx, PASS_OUT_TRACK);
+        }
         myCanary.PassOut(pwm, SERVO);
         break;
       case 4: // Thats better
         Serial.println("That's better...");
-        myCanary.Tweet(sfx, THATS_BETTER_TRACK);
+        if (audioState) {
+          myCanary.Tweet(sfx, THATS_BETTER_TRACK);
+        }
         myCanary.ThatsBetter(pwm, SERVO);
         break;
       case 5: // Dead
         Serial.println("Dead...");
-        myCanary.Tweet(sfx, DEAD_TRACK);
+        if (audioState) {
+          myCanary.Tweet(sfx, DEAD_TRACK);
+        }
         myCanary.Dead(pwm, SERVO);
         tombstoneFlag = true;
     }
     previousState = state;
+  }
+}
+
+void leftButtonIsr() {
+  audioState = ON;
+}
+
+void rightButtonIsr() {
+  audioState = OFF;
+}
+
+void toggleAudio() {
+  if (audioState != prevAudioState) {
+    digitalWrite(isrLED, audioState);
+    prevAudioState = audioState;
+    if (audioState == ON) {
+      Serial.println("Audio ON");
+    }
+    else {
+      Serial.println("Audio OFF");
+    }
+    updateEPD();
   }
 }
 
@@ -247,27 +305,34 @@ states getState(states previousState, int co2) {
   return state;
 }
 
-void reconnect() {
-  // Loop until we're reconnected
-  while (!mqttClient.connected()) {
-    Serial.print("Attempting MQTT connection...");
-    // Attempt to connect
-    if (mqttClient.connect("arduinoClient")) {
-      Serial.println("connected");
-      // Once connected, publish an announcement...
-      mqttClient.subscribe("airquality/#");
-    } else {
-      Serial.print("Failed: ");
-      Serial.print(mqttClient.state());
-      Serial.println(" try again in 5 seconds");
-      // Wait 5 seconds before retrying
-      delay(5000);
-    }
+void reconnectWiFi() {
+#ifdef DEBUG
+  Serial.print("Wifi Status: ");
+  Serial.println(WiFi.status());
+#endif
+  // WL_IDLE_STATUS     = 0
+  // WL_NO_SSID_AVAIL   = 1
+  // WL_SCAN_COMPLETED  = 2
+  // WL_CONNECTED       = 3
+  // WL_CONNECT_FAILED  = 4
+  // WL_CONNECTION_LOST = 5
+  // WL_DISCONNECTED    = 6
+  WiFi.disconnect();
+  delay(1000);
+  wifiState = WiFi.begin(ssid, pass);
+}
+
+boolean reconnectMQTT() {
+  if (mqttClient.connect("arduinoClient")) {
+    mqttClient.subscribe("airquality/#");
+    Serial.println("connected");
   }
+  return mqttClient.connected();
 }
 
 // Update sensor variables each time a message is received
 void callback(char* topic, byte * payload, unsigned int length) {
+#ifdef DEBUG
   Serial.print("Message arrived [");
   Serial.print(topic);
   Serial.print("] ");
@@ -275,7 +340,7 @@ void callback(char* topic, byte * payload, unsigned int length) {
     Serial.print((char)payload[i]);
   }
   Serial.println();
-
+#endif
   // ESDK sends a large JSON payload
   // - ensure you have enough memory allocated
   StaticJsonDocument<384> doc;
@@ -361,7 +426,7 @@ void updateEPD() {
   int temp = 0;
   if (temperature < 99.9) {
     temp = (int)(temperature * 10);
-    Serial.println(temp);
+    //    Serial.println(temp);
   }
   char TEMP_string[] = {'0', '0', '.', '0', 'C', '\0'};
   TEMP_string[0] = temp / 10 / 10 + '0';
@@ -437,7 +502,18 @@ void updateEPD() {
   epd.SetFrameMemory_Partial(paint.GetImage(), 0, 40, paint.GetWidth(), paint.GetHeight());
 
   paint.Clear(UNCOLORED);
-  paint.DrawStringAt(0, 0, "Wifi API", &Font20, COLORED);
+  if ((audioState == ON) && (wifiState == WL_CONNECTED)) {
+    paint.DrawStringAt(0, 0, "Wifi Audio", &Font16, COLORED);
+  }
+  else if (wifiState == WL_CONNECTED) {
+    paint.DrawStringAt(0, 0, "Wifi", &Font16, COLORED);
+  }
+  else if (audioState == ON) {
+    paint.DrawStringAt(0, 0, "Audio", &Font16, COLORED);
+  }
+  else {
+    paint.DrawStringAt(0, 0, "", &Font16, COLORED);
+  }
   epd.SetFrameMemory_Partial(paint.GetImage(), 0, 0, paint.GetWidth(), paint.GetHeight());
 
   epd.DisplayFrame_Partial();
