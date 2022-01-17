@@ -2,8 +2,8 @@
   An Arduino IoT client for DesgnSpark ESDK
   that reacts to environmental CO2 levels
 
-  Version: 0.9
-  Date: 10 January 2022
+  Version: 1.0
+  Date: 17 January 2022
   Author: Peter Milne
 
   Copywrite 2022 Peter Milne
@@ -11,9 +11,9 @@
   Version 3, 29 June 2007
 
  ****************************************************/
-// Un-comment for all debug prints
-// You will also need to attach a serial monitor before
-// the system will start up
+// Un-comment for debugging
+// In debug mode the system will not run until a serial monitor
+// is attached!
 //#define DEBUG
 
 #include <WiFiNINA.h>
@@ -27,20 +27,22 @@
 #include <PubSubClient.h>
 #include "ArduinoJson.h"
 
-// CO2 settings - change to suit your environment
+// CO2 levels - change to suit your environment
 #define STUFFY_CO2 1000  // CO2 ppm
 #define OPEN_WINDOW_CO2 2000
 #define PASS_OUT_CO2 3000
 #define DEAD_CO2 4000
 
 #ifdef DEBUG
-unsigned long DELAY_TIME = 20000;  // 20 sec for debug
+unsigned long DELAY_TIME = 20 * 1000;  // 20 sec for debug
 #else
 // Interval between audio / physical warnings - change if it's
 // nagging you too often
-unsigned long DELAY_TIME = 300000;  // 5 mins for default
+unsigned long DELAY_TIME = 30 * 60 * 1000;  // 30 mins default
 #endif
-// ESDK MQTT server name or IP address
+
+// ESDK MQTT server name
+// You may need to substiture its IP address on your network
 //const char broker[] = "192.168.0.75";
 const char broker[] = "airquality";
 int        port     = 1883;
@@ -48,7 +50,6 @@ int        port     = 1883;
 // ESDK topic root
 #define TOPIC "airquality/#"
 
-// Servo enumeration
 #define SERVO 0  // Flapping servo
 #define SERVO_FREQ 50 // Analog servos run at ~50 Hz
 
@@ -77,7 +78,7 @@ Adafruit_Soundboard sfx = Adafruit_Soundboard(&Serial1, NULL, SFX_RST);
 
 ESDKCanary myCanary = ESDKCanary();
 
-unsigned long delayStart = 0; // the time the delay started
+unsigned long delayStart = 0; // time the delay started
 bool delayRunning = false; // true if still waiting for delay to finish
 
 int co2 = 0;
@@ -100,17 +101,16 @@ enum buttons {LEFT_BUTTON = 2, RIGHT_BUTTON = 3};
 enum audioStates {OFF, ON};
 volatile audioStates audioState = ON;
 audioStates prevAudioState = OFF;
-const int isrLED =  10;
+//const int isrLED =  10;
 
 int wifiState = WL_IDLE_STATUS;
 
 void setup() {
   // Setup buttons
-  // initialize digital pin LED_BUILTIN as an output.
-  pinMode(LEFT_BUTTON, INPUT_PULLUP);
-  pinMode(RIGHT_BUTTON, INPUT_PULLUP);
-  pinMode(isrLED, OUTPUT);
-  digitalWrite(isrLED, HIGH);
+  pinMode(LEFT_BUTTON, INPUT);
+  pinMode(RIGHT_BUTTON, INPUT);
+  //  pinMode(isrLED, OUTPUT);
+  //  digitalWrite(isrLED, HIGH);
   attachInterrupt(digitalPinToInterrupt(LEFT_BUTTON), leftButtonIsr, FALLING);
   attachInterrupt(digitalPinToInterrupt(RIGHT_BUTTON), rightButtonIsr, FALLING);
 
@@ -271,7 +271,7 @@ void rightButtonIsr() {
 
 void toggleAudio() {
   if (audioState != prevAudioState) {
-    digitalWrite(isrLED, audioState);
+    //    digitalWrite(isrLED, audioState);
     prevAudioState = audioState;
     if (audioState == ON) {
       Serial.println("Audio ON");
@@ -426,7 +426,6 @@ void updateEPD() {
   int temp = 0;
   if (temperature < 99.9) {
     temp = (int)(temperature * 10);
-    //    Serial.println(temp);
   }
   char TEMP_string[] = {'0', '0', '.', '0', 'C', '\0'};
   TEMP_string[0] = temp / 10 / 10 + '0';
