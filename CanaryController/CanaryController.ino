@@ -6,7 +6,7 @@
   Date: 17 January 2022
   Author: Peter Milne
 
-  Copywrite 2022 Peter Milne
+  Copyright 2022 Peter Milne
   Released under GNU GENERAL PUBLIC LICENSE
   Version 3, 29 June 2007
 
@@ -14,7 +14,7 @@
 // Un-comment for debugging
 // In debug mode the system will not run until a serial monitor
 // is attached!
-//#define DEBUG
+#define DEBUG
 
 #include <WiFiNINA.h>
 #include "arduino_secrets.h"
@@ -98,10 +98,7 @@ enum states previousState = NORMAL;
 
 // Button code
 enum buttons {LEFT_BUTTON = 2, RIGHT_BUTTON = 3};
-enum audioStates {OFF, ON};
-volatile audioStates audioState = ON;
-audioStates prevAudioState = OFF;
-//const int isrLED =  10;
+volatile boolean audioOn = true;
 
 int wifiState = WL_IDLE_STATUS;
 
@@ -179,7 +176,6 @@ void setup() {
 }
 
 void loop() {
-  toggleAudio();
 
   // Attempt to reconnect - Wifi.begin blocks until connect or failure
   if (WiFi.status() != WL_CONNECTED) {
@@ -219,7 +215,7 @@ void loop() {
         break;
       case 1: // Stuffy
         Serial.println("Stuffy...");
-        if (audioState) {
+        if (audioOn) {
           myCanary.Tweet(sfx, STUFFY_TRACK);
         }
         myCanary.Flap(pwm, SERVO);
@@ -228,7 +224,7 @@ void loop() {
         break;
       case 2: // Open a window
         Serial.println("Open a window...");
-        if (audioState) {
+        if (audioOn) {
           myCanary.Tweet(sfx, OPEN_WINDOW_TRACK);
         }
         myCanary.OpenWindow(pwm, SERVO);
@@ -237,21 +233,21 @@ void loop() {
         break;
       case 3: // Pass out
         Serial.println("Pass out...");
-        if (audioState) {
+        if (audioOn) {
           myCanary.Tweet(sfx, PASS_OUT_TRACK);
         }
         myCanary.PassOut(pwm, SERVO);
         break;
       case 4: // Thats better
         Serial.println("That's better...");
-        if (audioState) {
+        if (audioOn) {
           myCanary.Tweet(sfx, THATS_BETTER_TRACK);
         }
         myCanary.ThatsBetter(pwm, SERVO);
         break;
       case 5: // Dead
         Serial.println("Dead...");
-        if (audioState) {
+        if (audioOn) {
           myCanary.Tweet(sfx, DEAD_TRACK);
         }
         myCanary.Dead(pwm, SERVO);
@@ -261,26 +257,14 @@ void loop() {
   }
 }
 
+// Toggle audio on / off
 void leftButtonIsr() {
-  audioState = ON;
+  audioOn = ! audioOn;
+  updateEPD();
 }
 
 void rightButtonIsr() {
-  audioState = OFF;
-}
-
-void toggleAudio() {
-  if (audioState != prevAudioState) {
-    //    digitalWrite(isrLED, audioState);
-    prevAudioState = audioState;
-    if (audioState == ON) {
-      Serial.println("Audio ON");
-    }
-    else {
-      Serial.println("Audio OFF");
-    }
-    updateEPD();
-  }
+  //  audioOn = OFF;
 }
 
 // Sets the rules for changing state
@@ -501,13 +485,13 @@ void updateEPD() {
   epd.SetFrameMemory_Partial(paint.GetImage(), 0, 40, paint.GetWidth(), paint.GetHeight());
 
   paint.Clear(UNCOLORED);
-  if ((audioState == ON) && (wifiState == WL_CONNECTED)) {
+  if ((audioOn) && (wifiState == WL_CONNECTED)) {
     paint.DrawStringAt(0, 0, "Wifi Audio", &Font16, COLORED);
   }
   else if (wifiState == WL_CONNECTED) {
     paint.DrawStringAt(0, 0, "Wifi", &Font16, COLORED);
   }
-  else if (audioState == ON) {
+  else if (audioOn) {
     paint.DrawStringAt(0, 0, "Audio", &Font16, COLORED);
   }
   else {
