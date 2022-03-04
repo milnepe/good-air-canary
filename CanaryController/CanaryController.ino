@@ -2,8 +2,8 @@
   An Arduino IoT client for DesgnSpark ESDK
   that reacts to environmental CO2 levels
 
-  Version: 1.0
-  Date: 17 January 2022
+  Version: 1.1
+  Date: 04 March 2022
   Author: Peter Milne
 
   Copyright 2022 Peter Milne
