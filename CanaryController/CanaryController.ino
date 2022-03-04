@@ -81,11 +81,11 @@ ESDKCanary myCanary = ESDKCanary();
 unsigned long delayStart = 0; // time the delay started
 bool delayRunning = false; // true if still waiting for delay to finish
 
-int co2 = 0;
-double temperature = 0;
-double humidity = 0;
-int tvoc = 0;
-int pm = 0;
+int co2 = 400;
+double temperature = 21.0;
+double humidity = 40.0;
+int tvoc = 100;
+int pm = 1;
 
 bool updateDisplayFlag = false;
 bool tombstoneFlag = false;
@@ -99,6 +99,7 @@ enum states previousState = NORMAL;
 // Button code
 enum buttons {LEFT_BUTTON = 2, RIGHT_BUTTON = 3};
 volatile boolean audioOn = true;
+volatile boolean demoMode = false;
 
 int wifiState = WL_IDLE_STATUS;
 
@@ -176,6 +177,10 @@ void setup() {
 }
 
 void loop() {
+  if (demoMode) {
+    Serial.println("Entering demo mode");
+    demo();
+  }
 
   // Attempt to reconnect - Wifi.begin blocks until connect or failure
   if (WiFi.status() != WL_CONNECTED) {
@@ -209,52 +214,91 @@ void loop() {
 
   if (delayRunning && ((millis() - delayStart) >= DELAY_TIME)) {
     delayStart += DELAY_TIME; // this prevents drift in the delays
-
-    switch (state = getState(previousState, co2)) {
-      case 0: // Normal do nothing
-        break;
-      case 1: // Stuffy
-        Serial.println("Stuffy...");
-        if (audioOn) {
-          myCanary.Tweet(sfx, STUFFY_TRACK);
-        }
-        myCanary.Flap(pwm, SERVO);
-        myCanary.Flap(pwm, SERVO);
-        myCanary.Flap(pwm, SERVO);
-        break;
-      case 2: // Open a window
-        Serial.println("Open a window...");
-        if (audioOn) {
-          myCanary.Tweet(sfx, OPEN_WINDOW_TRACK);
-        }
-        myCanary.OpenWindow(pwm, SERVO);
-        myCanary.OpenWindow(pwm, SERVO);
-        myCanary.OpenWindow(pwm, SERVO);
-        break;
-      case 3: // Pass out
-        Serial.println("Pass out...");
-        if (audioOn) {
-          myCanary.Tweet(sfx, PASS_OUT_TRACK);
-        }
-        myCanary.PassOut(pwm, SERVO);
-        break;
-      case 4: // Thats better
-        Serial.println("That's better...");
-        if (audioOn) {
-          myCanary.Tweet(sfx, THATS_BETTER_TRACK);
-        }
-        myCanary.ThatsBetter(pwm, SERVO);
-        break;
-      case 5: // Dead
-        Serial.println("Dead...");
-        if (audioOn) {
-          myCanary.Tweet(sfx, DEAD_TRACK);
-        }
-        myCanary.Dead(pwm, SERVO);
-        tombstoneFlag = true;
-    }
-    previousState = state;
+    updateCanary();
+    //    previousState = state;
   }
+}
+
+// Demo mode runs without ESDK
+void demo() {
+  DELAY_TIME = 10 * 1000;  // 20 sec for debug
+  if (mqttClient.connected()) {
+    mqttClient.disconnect();
+  }
+  if (audioOn) {
+    myCanary.Tweet(sfx, YAWN_TRACK);
+  }
+  delay(DELAY_TIME);
+  co2 = STUFFY_CO2;
+  updateEPD();
+  updateCanary();
+  delay(DELAY_TIME);
+  co2 = OPEN_WINDOW_CO2;
+  updateEPD();
+  updateCanary();
+  delay(DELAY_TIME);
+  updateEPD();
+  co2 = PASS_OUT_CO2;
+  updateEPD();
+  updateCanary();
+  delay(DELAY_TIME);
+  co2 = DEAD_CO2;
+  updateEPD();
+  if (audioOn) {
+    myCanary.Tweet(sfx, DEAD_TRACK);
+  }
+  myCanary.PassOut(pwm, SERVO);
+  displayTombStone();
+  delay(5000);
+  displayClear();
+  while (1);// Program ends!! Reboot
+}
+
+void updateCanary() {
+  switch (state = getState(previousState, co2)) {
+    case 0: // Normal do nothing
+      break;
+    case 1: // Stuffy
+      Serial.println("Stuffy...");
+      if (audioOn) {
+        myCanary.Tweet(sfx, STUFFY_TRACK);
+      }
+      myCanary.Flap(pwm, SERVO);
+      myCanary.Flap(pwm, SERVO);
+      myCanary.Flap(pwm, SERVO);
+      break;
+    case 2: // Open a window
+      Serial.println("Open a window...");
+      if (audioOn) {
+        myCanary.Tweet(sfx, OPEN_WINDOW_TRACK);
+      }
+      myCanary.OpenWindow(pwm, SERVO);
+      myCanary.OpenWindow(pwm, SERVO);
+      myCanary.OpenWindow(pwm, SERVO);
+      break;
+    case 3: // Pass out
+      Serial.println("Pass out...");
+      if (audioOn) {
+        myCanary.Tweet(sfx, PASS_OUT_TRACK);
+      }
+      myCanary.PassOut(pwm, SERVO);
+      break;
+    case 4: // Thats better
+      Serial.println("That's better...");
+      if (audioOn) {
+        myCanary.Tweet(sfx, THATS_BETTER_TRACK);
+      }
+      myCanary.ThatsBetter(pwm, SERVO);
+      break;
+    case 5: // Dead
+      Serial.println("Dead...");
+      if (audioOn) {
+        myCanary.Tweet(sfx, DEAD_TRACK);
+      }
+      myCanary.Dead(pwm, SERVO);
+      tombstoneFlag = true;
+  }
+  previousState = state;
 }
 
 // Toggle audio on / off
@@ -263,8 +307,9 @@ void leftButtonIsr() {
   updateEPD();
 }
 
+// Enter demo mode
 void rightButtonIsr() {
-  //  audioOn = OFF;
+  demoMode = true;
 }
 
 // Sets the rules for changing state
