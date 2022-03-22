@@ -1,4 +1,4 @@
-arduino_secrets.h
+secrets.h
 
 # Prerequisites
 *.d
