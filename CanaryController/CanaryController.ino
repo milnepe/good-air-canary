@@ -255,7 +255,7 @@ void demo() {
   delay(5000);
   myCanary.ServoInit(pwm, SERVO);
   displayClear();
-//  while (1);// Program ends!! Reboot
+  //  while (1);// Program ends!! Reboot
 }
 
 void updateCanary() {
@@ -342,6 +342,7 @@ void reconnectWiFi() {
 #ifdef DEBUG
   Serial.print("Wifi Status: ");
   Serial.println(WiFi.status());
+  Serial.println(WiFi.localIP());
 #endif
   // WL_IDLE_STATUS     = 0
   // WL_NO_SSID_AVAIL   = 1
