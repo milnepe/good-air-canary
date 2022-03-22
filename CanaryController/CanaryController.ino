@@ -107,14 +107,14 @@ void setup() {
   // Setup buttons
   pinMode(LEFT_BUTTON, INPUT);
   pinMode(RIGHT_BUTTON, INPUT);
-  pinMode(DEMO_BUTTON, INPUT);  
+  pinMode(DEMO_BUTTON, INPUT);
   //  pinMode(isrLED, OUTPUT);
   //  digitalWrite(isrLED, HIGH);
   attachInterrupt(digitalPinToInterrupt(LEFT_BUTTON), leftButtonIsr, FALLING);
   // DEMO_BUTTON duplicates the RIGHT_BUTTON function - activates demo
   attachInterrupt(digitalPinToInterrupt(RIGHT_BUTTON), rightButtonIsr, FALLING);
   attachInterrupt(digitalPinToInterrupt(DEMO_BUTTON), rightButtonIsr, FALLING);
-  
+
   Serial.begin(115200);
 #ifdef DEBUG
   while (!Serial) {
@@ -253,10 +253,8 @@ void demo() {
   myCanary.PassOut(pwm, SERVO);
   displayTombStone();
   delay(5000);
+  myCanary.ServoInit(pwm, SERVO);
   displayClear();
-  co2 = STUFFY_CO2;
-  updateEPD();
-  updateCanary();  
   while (1);// Program ends!! Reboot
 }
 
