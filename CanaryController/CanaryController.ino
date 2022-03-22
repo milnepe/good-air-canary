@@ -97,7 +97,7 @@ enum states {NORMAL, STUFFY, OPEN_WINDOW, PASS_OUT, THATS_BETTER, DEAD} state = 
 enum states previousState = NORMAL;
 
 // Button code
-enum buttons {LEFT_BUTTON = 2, RIGHT_BUTTON = 3};
+enum buttons {LEFT_BUTTON = 2, RIGHT_BUTTON = 3, DEMO_BUTTON = 9};
 volatile boolean audioOn = true;
 volatile boolean demoMode = false;
 
@@ -107,11 +107,14 @@ void setup() {
   // Setup buttons
   pinMode(LEFT_BUTTON, INPUT);
   pinMode(RIGHT_BUTTON, INPUT);
+  pinMode(DEMO_BUTTON, INPUT);  
   //  pinMode(isrLED, OUTPUT);
   //  digitalWrite(isrLED, HIGH);
   attachInterrupt(digitalPinToInterrupt(LEFT_BUTTON), leftButtonIsr, FALLING);
+  // DEMO_BUTTON duplicates the RIGHT_BUTTON function - activates demo
   attachInterrupt(digitalPinToInterrupt(RIGHT_BUTTON), rightButtonIsr, FALLING);
-
+  attachInterrupt(digitalPinToInterrupt(DEMO_BUTTON), rightButtonIsr, FALLING);
+  
   Serial.begin(115200);
 #ifdef DEBUG
   while (!Serial) {
@@ -251,6 +254,9 @@ void demo() {
   displayTombStone();
   delay(5000);
   displayClear();
+  co2 = STUFFY_CO2;
+  updateEPD();
+  updateCanary();  
   while (1);// Program ends!! Reboot
 }
 
