@@ -78,7 +78,7 @@ Adafruit_Soundboard sfx = Adafruit_Soundboard(&Serial1, NULL, SFX_RST);
 
 ESDKCanary myCanary = ESDKCanary();
 
-unsigned long delayStart = 0; // time the delay started
+//unsigned long delayStart = 0; // time the delay started
 bool delayRunning = false; // true if still waiting for delay to finish
 
 int co2 = 400;
@@ -173,7 +173,7 @@ void setup() {
   mqttClient.setCallback(callback);
   mqttClient.setBufferSize(384);
 
-  delayStart = millis();
+//  delayStart = millis();
   delayRunning = true;
 
   delay(5000);
@@ -215,6 +215,7 @@ void loop() {
     updateEPD();
   }
 
+  static unsigned long delayStart = millis();
   if (delayRunning && ((millis() - delayStart) >= DELAY_TIME)) {
     delayStart += DELAY_TIME; // this prevents drift in the delays
     updateCanary();
@@ -484,11 +485,14 @@ void updateEPD() {
   TVOC_string[2] = tvoc % 100 / 10 + '0';
   TVOC_string[3] = tvoc % 100 % 10 + '0';
 
-  if (pm > 9) {
+  if (pm > 9999) {
     pm = 0;
   }
-  char PART_string[] = {'0', '\0'};
-  PART_string[0] = pm % 100 % 10 + '0';
+  char PART_string[] = {'0', '0', '0', '0','\0'};  
+  PART_string[0] = pm / 100 / 10 + '0';
+  PART_string[1] = pm / 100 % 10 + '0';
+  PART_string[2] = pm % 100 / 10 + '0';
+  PART_string[3] = pm % 100 % 10 + '0';  
 
   paint.SetWidth(120);
   paint.SetHeight(32);
