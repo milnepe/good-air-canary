@@ -255,7 +255,7 @@ void demo() {
   delay(5000);
   myCanary.ServoInit(pwm, SERVO);
   displayClear();
-  while (1);// Program ends!! Reboot
+//  while (1);// Program ends!! Reboot
 }
 
 void updateCanary() {
