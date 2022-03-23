@@ -34,12 +34,13 @@
 #define DEAD_CO2 4000
 
 #ifdef DEBUG
-unsigned long DELAY_TIME = 20 * 1000;  // 20 sec for debug
+unsigned long DELAY_TIME = 20 * 1000;  // 10 sec for debug
 #else
 // Interval between audio / physical warnings - change if it's
 // nagging you too often
 unsigned long DELAY_TIME = 30 * 60 * 1000;  // 30 mins default
 #endif
+unsigned long DEMO_DELAY_TIME = 5 * 1000;  // 5 sec for demo
 
 // ESDK MQTT server name
 // You may need to substiture its IP address on your network
@@ -173,7 +174,7 @@ void setup() {
   mqttClient.setCallback(callback);
   mqttClient.setBufferSize(384);
 
-//  delayStart = millis();
+  //  delayStart = millis();
   delayRunning = true;
 
   delay(5000);
@@ -181,82 +182,82 @@ void setup() {
 
 void loop() {
   if (demoMode) {
-    Serial.println("Entering demo mode");
+    Serial.println("Demo mode...");
     demo();
-  }
+  } else {  // WiFi mode
 
-  // Attempt to reconnect - Wifi.begin blocks until connect or failure
-  if (WiFi.status() != WL_CONNECTED) {
-    updateEPD();
-    reconnectWiFi();
-  }
-
-  if (!mqttClient.connected()) {
-    // Attempt to reconnect without blocking
-    long now = millis();
-    if (now - lastReconnectMQTTAttempt > 5000) {
-      lastReconnectMQTTAttempt = now;
-      if (reconnectMQTT()) {
-        lastReconnectMQTTAttempt = 0;
-      }
+    // Attempt to reconnect - Wifi.begin blocks until connect or failure
+    if (WiFi.status() != WL_CONNECTED) {
+      Serial.println("WiFi mode...");
+      updateEPD();
+      reconnectWiFi();
     }
-  } else {
-    mqttClient.loop();
-  }
 
-  if (tombstoneFlag) {
-    displayTombStone();
-    delay(5000);
-    displayClear();
-    while (1);// Program ends!! Reboot
-  }
-  else if (updateDisplayFlag) {
-    updateDisplayFlag = false;
-    updateEPD();
-  }
+    // Attempt to reconnect without blocking
+    if (!mqttClient.connected()) {
+      long now = millis();
+      if (now - lastReconnectMQTTAttempt > 5000) {
+        lastReconnectMQTTAttempt = now;
+        if (reconnectMQTT()) {
+          lastReconnectMQTTAttempt = 0;
+        }
+      }
+    } else {
+      mqttClient.loop();
+    }
 
-  static unsigned long delayStart = millis();
-  if (delayRunning && ((millis() - delayStart) >= DELAY_TIME)) {
-    delayStart += DELAY_TIME; // this prevents drift in the delays
-    updateCanary();
-    //    previousState = state;
+    if (tombstoneFlag) {
+      displayTombStone();
+      delay(5000);
+      displayClear();
+      while (1);// Program ends!! Reboot
+    }
+    else if (updateDisplayFlag) {
+      updateDisplayFlag = false;
+      updateEPD();
+    }
+
+    static unsigned long delayStart = millis();
+    if (delayRunning && ((millis() - delayStart) >= DELAY_TIME)) {
+      delayStart += DELAY_TIME; // this prevents drift in the delays
+      updateCanary();
+    }
   }
 }
 
 // Demo mode runs without ESDK
 void demo() {
-  DELAY_TIME = 10 * 1000;  // 20 sec for debug
   if (mqttClient.connected()) {
     mqttClient.disconnect();
+    WiFi.disconnect();
+    wifiState = WiFi.status();
   }
-  if (audioOn) {
-    myCanary.Tweet(sfx, YAWN_TRACK);
-  }
-  delay(DELAY_TIME);
+  // Save last CO2 reading
+  int last_co2 = co2;
+  audioOn = true;
+  myCanary.Tweet(sfx, YAWN_TRACK);
+  delay(DEMO_DELAY_TIME);
   co2 = STUFFY_CO2;
   updateEPD();
   updateCanary();
-  delay(DELAY_TIME);
+  delay(DEMO_DELAY_TIME);
   co2 = OPEN_WINDOW_CO2;
   updateEPD();
   updateCanary();
-  delay(DELAY_TIME);
+  delay(DEMO_DELAY_TIME);
   updateEPD();
   co2 = PASS_OUT_CO2;
   updateEPD();
   updateCanary();
-  delay(DELAY_TIME);
+  delay(DEMO_DELAY_TIME);
   co2 = DEAD_CO2;
   updateEPD();
-  if (audioOn) {
-    myCanary.Tweet(sfx, DEAD_TRACK);
-  }
+  myCanary.Tweet(sfx, DEAD_TRACK);
   myCanary.PassOut(pwm, SERVO);
   displayTombStone();
-  delay(5000);
   myCanary.ServoInit(pwm, SERVO);
-  displayClear();
-  //  while (1);// Program ends!! Reboot
+  co2 = last_co2; // Restore CO2 level
+  demoMode = false;
 }
 
 void updateCanary() {
@@ -343,7 +344,6 @@ void reconnectWiFi() {
 #ifdef DEBUG
   Serial.print("Wifi Status: ");
   Serial.println(WiFi.status());
-  Serial.println(WiFi.localIP());
 #endif
   // WL_IDLE_STATUS     = 0
   // WL_NO_SSID_AVAIL   = 1
@@ -354,7 +354,10 @@ void reconnectWiFi() {
   // WL_DISCONNECTED    = 6
   WiFi.disconnect();
   delay(1000);
-  wifiState = WiFi.begin(ssid, pass);
+  WiFi.begin(ssid, pass);
+  delay(1000);
+  wifiState = WiFi.status();
+  Serial.println(WiFi.localIP());  
 }
 
 boolean reconnectMQTT() {
@@ -430,6 +433,7 @@ void displayTombStone() {
   }
   epd.SetFrameMemory_Base(TOMBSTONE);
   epd.DisplayFrame();
+  tombstoneFlag = false;
   delay(5000);
 }
 
@@ -488,11 +492,11 @@ void updateEPD() {
   if (pm > 9999) {
     pm = 0;
   }
-  char PART_string[] = {'0', '0', '0', '0','\0'};  
+  char PART_string[] = {'0', '0', '0', '0', '\0'};
   PART_string[0] = pm / 100 / 10 + '0';
   PART_string[1] = pm / 100 % 10 + '0';
   PART_string[2] = pm % 100 / 10 + '0';
-  PART_string[3] = pm % 100 % 10 + '0';  
+  PART_string[3] = pm % 100 % 10 + '0';
 
   paint.SetWidth(120);
   paint.SetHeight(32);
