@@ -235,6 +235,7 @@ void demo() {
   // Save last CO2 reading
   int last_co2 = co2;
   audioOn = true;
+  updateEPD();  
   myCanary.Tweet(sfx, YAWN_TRACK);
   delay(DEMO_DELAY_TIME);
   co2 = STUFFY_CO2;
@@ -258,6 +259,9 @@ void demo() {
   myCanary.ServoInit(pwm, SERVO);
   co2 = last_co2; // Restore CO2 level
   demoMode = false;
+  audioOn = true;
+  updateEPD();  
+  updateCanary();
 }
 
 void updateCanary() {
@@ -357,7 +361,7 @@ void reconnectWiFi() {
   WiFi.begin(ssid, pass);
   delay(1000);
   wifiState = WiFi.status();
-  Serial.println(WiFi.localIP());  
+  Serial.println(WiFi.localIP());
 }
 
 boolean reconnectMQTT() {
@@ -543,7 +547,10 @@ void updateEPD() {
   epd.SetFrameMemory_Partial(paint.GetImage(), 0, 40, paint.GetWidth(), paint.GetHeight());
 
   paint.Clear(UNCOLORED);
-  if ((audioOn) && (wifiState == WL_CONNECTED)) {
+  if (demoMode) {
+    paint.DrawStringAt(0, 0, "Demo Mode", &Font16, COLORED);
+  }
+  else if ((audioOn) && (wifiState == WL_CONNECTED)) {
     paint.DrawStringAt(0, 0, "Wifi Audio", &Font16, COLORED);
   }
   else if (wifiState == WL_CONNECTED) {
