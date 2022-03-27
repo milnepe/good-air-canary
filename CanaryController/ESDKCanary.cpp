@@ -6,6 +6,16 @@ void ESDKCanary::ServoInit(Adafruit_PWMServoDriver pwm, int servo) {
   pwm.setPWM(servo, 0, WINGS_DOWN);
 }
 
+void ESDKCanary::SlowInit(Adafruit_PWMServoDriver pwm, int servo) {
+  uint16_t pulselen = PASS_OUT_POS;
+
+  // Up
+  for (; pulselen < WINGS_DOWN; pulselen++) {
+    pwm.setPWM(servo, 0, pulselen);
+    delay(3);
+  }
+}
+
 void ESDKCanary::Flap(Adafruit_PWMServoDriver pwm, int servo) {
   // Move wings from start position (down) to up position
   // and back to start position
@@ -70,7 +80,7 @@ void ESDKCanary::ThatsBetter(Adafruit_PWMServoDriver pwm, int servo) {
   for (; pulselen < WINGS_DOWN; pulselen++) {
     pwm.setPWM(servo, 0, pulselen);
     delay(3);
-  }  
+  }
 }
 
 void ESDKCanary::Dead(Adafruit_PWMServoDriver pwm, int servo) {

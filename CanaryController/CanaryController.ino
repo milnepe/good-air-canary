@@ -14,7 +14,7 @@
 // Un-comment for debugging
 // In debug mode the system will not run until a serial monitor
 // is attached!
-#define DEBUG
+//#define DEBUG
 
 #include <WiFiNINA.h>
 #include "arduino_secrets.h"
@@ -33,14 +33,17 @@
 #define PASS_OUT_CO2 3000
 #define DEAD_CO2 4000
 
+#define NORMAL_DELAY 30 * 60 * 1000  // 30 mins default
+#define DEMO_DELAY 10 * 1000    // 10 sec for debug
+
 #ifdef DEBUG
-unsigned long DELAY_TIME = 20 * 1000;  // 10 sec for debug
+volatile unsigned long delay_time = DEMO_DELAY;
 #else
 // Interval between audio / physical warnings - change if it's
 // nagging you too often
-unsigned long DELAY_TIME = 30 * 60 * 1000;  // 30 mins default
+unsigned long delay_time = NORMAL_DELAY;
 #endif
-unsigned long DEMO_DELAY_TIME = 5 * 1000;  // 5 sec for demo
+unsigned long previousMillis = 0;
 
 // ESDK MQTT server name
 // You may need to substiture its IP address on your network
@@ -82,13 +85,13 @@ ESDKCanary myCanary = ESDKCanary();
 //unsigned long delayStart = 0; // time the delay started
 bool delayRunning = false; // true if still waiting for delay to finish
 
-int co2 = 400;
+volatile int co2 = 400;
 double temperature = 21.0;
 double humidity = 40.0;
 int tvoc = 100;
 int pm = 1;
 
-bool updateDisplayFlag = false;
+volatile bool updateDisplayFlag = false;
 bool tombstoneFlag = false;
 
 uint16_t pulselen = 0;
@@ -100,7 +103,8 @@ enum states previousState = NORMAL;
 // Button code
 enum buttons {LEFT_BUTTON = 2, RIGHT_BUTTON = 3, DEMO_BUTTON = 9};
 volatile boolean audioOn = true;
-volatile boolean demoMode = false;
+volatile boolean demo_mode = false;
+volatile boolean reentrant = true;
 
 int wifiState = WL_IDLE_STATUS;
 
@@ -139,8 +143,6 @@ void setup() {
   epd.ClearFrameMemory(0xFF);   // bit set = white, bit reset = black
   epd.DisplayFrame();
 
-  // Remove power during this delay to shut down with blank screen
-  delay(5000);
   /**
       there are 2 memory areas embedded in the e-paper display
       and once the display is refreshed, the memory area will be auto-toggled,
@@ -174,18 +176,19 @@ void setup() {
   mqttClient.setCallback(callback);
   mqttClient.setBufferSize(384);
 
-  //  delayStart = millis();
-  delayRunning = true;
-
   delay(5000);
 }
 
 void loop() {
-  if (demoMode) {
-    Serial.println("Demo mode...");
-    demo();
-  } else {  // WiFi mode
+  if (demo_mode) {
+    if (WiFi.status() == WL_CONNECTED) {
+      mqttClient.disconnect();
+      WiFi.disconnect();
+      wifiState = WiFi.status();
+      delay(1000);
+    }
 
+  } else {  // WiFi mode
     // Attempt to reconnect - Wifi.begin blocks until connect or failure
     if (WiFi.status() != WL_CONNECTED) {
       Serial.println("WiFi mode...");
@@ -205,71 +208,34 @@ void loop() {
     } else {
       mqttClient.loop();
     }
+  }  // end demo
 
-    if (tombstoneFlag) {
-      displayTombStone();
-      delay(5000);
-      displayClear();
-      while (1);// Program ends!! Reboot
-    }
-    else if (updateDisplayFlag) {
-      updateDisplayFlag = false;
-      updateEPD();
-    }
-
-    static unsigned long delayStart = millis();
-    if (delayRunning && ((millis() - delayStart) >= DELAY_TIME)) {
-      delayStart += DELAY_TIME; // this prevents drift in the delays
-      updateCanary();
-    }
+  if (updateDisplayFlag) {
+    updateDisplayFlag = false;
+    updateEPD();
   }
-}
 
-// Demo mode runs without ESDK
-void demo() {
-  if (mqttClient.connected()) {
-    mqttClient.disconnect();
-    WiFi.disconnect();
-    wifiState = WiFi.status();
+  unsigned long currentMillis = millis();
+  if (currentMillis - previousMillis >= delay_time) {
+    previousMillis = currentMillis;
+    updateCanary();
   }
-  // Save last CO2 reading
-  int last_co2 = co2;
-  audioOn = true;
-  updateEPD();  
-  myCanary.Tweet(sfx, YAWN_TRACK);
-  delay(DEMO_DELAY_TIME);
-  co2 = STUFFY_CO2;
-  updateEPD();
-  updateCanary();
-  delay(DEMO_DELAY_TIME);
-  co2 = OPEN_WINDOW_CO2;
-  updateEPD();
-  updateCanary();
-  delay(DEMO_DELAY_TIME);
-  updateEPD();
-  co2 = PASS_OUT_CO2;
-  updateEPD();
-  updateCanary();
-  delay(DEMO_DELAY_TIME);
-  co2 = DEAD_CO2;
-  updateEPD();
-  myCanary.Tweet(sfx, DEAD_TRACK);
-  myCanary.PassOut(pwm, SERVO);
-  displayTombStone();
-  myCanary.ServoInit(pwm, SERVO);
-  co2 = last_co2; // Restore CO2 level
-  demoMode = false;
-  audioOn = true;
-  updateEPD();  
-  updateCanary();
 }
 
 void updateCanary() {
   switch (state = getState(previousState, co2)) {
     case 0: // Normal do nothing
+      if (demo_mode) {
+        co2 += 1000;
+        updateDisplayFlag = true;
+      }
       break;
     case 1: // Stuffy
       Serial.println("Stuffy...");
+      if (demo_mode) {
+        co2 += 1000;
+        updateDisplayFlag = true;
+      }
       if (audioOn) {
         myCanary.Tweet(sfx, STUFFY_TRACK);
       }
@@ -279,6 +245,10 @@ void updateCanary() {
       break;
     case 2: // Open a window
       Serial.println("Open a window...");
+      if (demo_mode) {
+        co2 += 1000;
+        updateDisplayFlag = true;
+      }
       if (audioOn) {
         myCanary.Tweet(sfx, OPEN_WINDOW_TRACK);
       }
@@ -288,6 +258,10 @@ void updateCanary() {
       break;
     case 3: // Pass out
       Serial.println("Pass out...");
+      if (demo_mode) {
+        co2 += 1000;
+        updateDisplayFlag = true;
+      }
       if (audioOn) {
         myCanary.Tweet(sfx, PASS_OUT_TRACK);
       }
@@ -305,8 +279,30 @@ void updateCanary() {
       if (audioOn) {
         myCanary.Tweet(sfx, DEAD_TRACK);
       }
-      myCanary.Dead(pwm, SERVO);
-      tombstoneFlag = true;
+      if (demo_mode) {
+        myCanary.PassOut(pwm, SERVO);
+        displayTombStone();
+        delay(5000);
+        displayClear();
+        co2 = 400;
+        updateDisplayFlag = true;
+        demo_mode = false;
+//        myCanary.SlowInit(pwm, SERVO);
+        delay(2000);        
+#ifdef DEBUG
+        delay_time = DEMO_DELAY;
+#else
+        delay_time = NORMAL_DELAY;
+#endif
+        updateCanary();
+      } else {
+        myCanary.Dead(pwm, SERVO);
+        displayTombStone();
+        delay(5000);
+        displayClear();
+        while (1);// Program ends!! Reboot
+        //        tombstoneFlag = true;
+      }
   }
   previousState = state;
 }
@@ -319,7 +315,11 @@ void leftButtonIsr() {
 
 // Enter demo mode
 void rightButtonIsr() {
-  demoMode = true;
+  demo_mode = true;
+  delay_time = DEMO_DELAY;
+  audioOn = true;
+  co2 = 400;
+  reentrant = true;
 }
 
 // Sets the rules for changing state
@@ -367,7 +367,7 @@ void reconnectWiFi() {
 boolean reconnectMQTT() {
   if (mqttClient.connect("arduinoClient")) {
     mqttClient.subscribe("airquality/#");
-    Serial.println("connected");
+    Serial.println("MQTT connected");
   }
   return mqttClient.connected();
 }
@@ -394,6 +394,10 @@ void callback(char* topic, byte * payload, unsigned int length) {
   pm = doc["pm"]["pm2.5"];
 
   updateDisplayFlag = true;
+  if (reentrant) {
+    reentrant = false;
+    updateCanary();
+  }
 }
 
 void updateEPDGreeting() {
@@ -547,7 +551,7 @@ void updateEPD() {
   epd.SetFrameMemory_Partial(paint.GetImage(), 0, 40, paint.GetWidth(), paint.GetHeight());
 
   paint.Clear(UNCOLORED);
-  if (demoMode) {
+  if (demo_mode) {
     paint.DrawStringAt(0, 0, "Demo Mode", &Font16, COLORED);
   }
   else if ((audioOn) && (wifiState == WL_CONNECTED)) {

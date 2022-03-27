@@ -22,6 +22,7 @@ class ESDKCanary {
     ESDKCanary();
 
     void ServoInit(Adafruit_PWMServoDriver pwm, int servo);
+    void SlowInit(Adafruit_PWMServoDriver pwm, int servo);
     void Flap(Adafruit_PWMServoDriver pwm, int servo);
     void OpenWindow(Adafruit_PWMServoDriver pwm, int servo);
     void PassOut(Adafruit_PWMServoDriver pwm, int servo);
