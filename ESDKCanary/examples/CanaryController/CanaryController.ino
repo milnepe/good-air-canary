@@ -2,8 +2,8 @@
   An Arduino IoT client for DesgnSpark ESDK
   that reacts to environmental CO2 levels
 
-  Version: 2.0
-  Date: 27 March 2022
+  Version: 3.0
+  Date: 8 May 2022
   Author: Peter Milne
 
   Copyright 2022 Peter Milne
@@ -112,13 +112,13 @@ void setup() {
   // Setup buttons
   pinMode(LEFT_BUTTON, INPUT);
   pinMode(RIGHT_BUTTON, INPUT);
-  pinMode(DEMO_BUTTON, INPUT);
+  //  pinMode(DEMO_BUTTON, INPUT);
   //  pinMode(isrLED, OUTPUT);
   //  digitalWrite(isrLED, HIGH);
   attachInterrupt(digitalPinToInterrupt(LEFT_BUTTON), leftButtonIsr, FALLING);
   // DEMO_BUTTON duplicates the RIGHT_BUTTON function - activates demo
   attachInterrupt(digitalPinToInterrupt(RIGHT_BUTTON), rightButtonIsr, FALLING);
-  attachInterrupt(digitalPinToInterrupt(DEMO_BUTTON), rightButtonIsr, FALLING);
+  //  attachInterrupt(digitalPinToInterrupt(DEMO_BUTTON), rightButtonIsr, FALLING);
 
   Serial.begin(115200);
 #ifdef DEBUG
@@ -208,7 +208,7 @@ void loop() {
     } else {
       mqttClient.loop();
     }
-  }  // end demo
+  }
 
   if (updateDisplayFlag) {
     updateDisplayFlag = false;
@@ -287,8 +287,8 @@ void updateCanary() {
         co2 = 400;
         updateDisplayFlag = true;
         demo_mode = false;
-//        myCanary.SlowInit(pwm, SERVO);
-        delay(2000);        
+        //        myCanary.SlowInit(pwm, SERVO);
+        delay(2000);
 #ifdef DEBUG
         delay_time = DEMO_DELAY;
 #else
