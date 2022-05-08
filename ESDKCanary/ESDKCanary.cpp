@@ -1,110 +1,70 @@
 #include "ESDKCanary.h"
 
-ESDKCanary::ESDKCanary() {}
-
-void ESDKCanary::ServoInit(Adafruit_PWMServoDriver pwm, int servo) {
-  pwm.setPWM(servo, 0, WINGS_DOWN);
+ESDKCanary::ESDKCanary(Adafruit_PWMServoDriver *pwm, int servo) {
+  _pwm = pwm;
+  _servo = servo;
+  _pulselen = WINGS_MID;
 }
 
-void ESDKCanary::SlowInit(Adafruit_PWMServoDriver pwm, int servo) {
-  uint16_t pulselen = PASS_OUT_POS;
+uint16_t ESDKCanary::getPulselen(void) {
+    return _pulselen;
+}
 
-  // Up
-  for (; pulselen < WINGS_DOWN; pulselen++) {
-    pwm.setPWM(servo, 0, pulselen);
+void ESDKCanary::StartPos(uint16_t start_pos) {
+  // Move wings to start position
+  for (; _pulselen < start_pos; _pulselen++) {
+    _pwm->setPWM(_servo, 0, _pulselen);
     delay(3);
   }
 }
 
-void ESDKCanary::Flap(Adafruit_PWMServoDriver pwm, int servo) {
-  // Move wings from start position (down) to up position
-  // and back to start position
+void ESDKCanary::Flap(uint16_t down_pos, uint16_t up_pos, int flaps, int speed_idx) {
+  // Move wings back and fourth
+  // Note that the value of pulselen is inverted!
+  // speed_idx  0 is fastest
+
+  for (int i = 0; i < flaps; i++) {
+    // Up
+    for (; _pulselen > up_pos; _pulselen--) {
+      _pwm->setPWM(_servo, 0, _pulselen);
+      delay(speed_idx);
+    }
+    delay(100);
+    // Down
+    for (; _pulselen < down_pos; _pulselen++) {
+      _pwm->setPWM(_servo, 0, _pulselen);
+      delay(speed_idx);
+    }
+    delay(100);
+  }
+}
+
+void ESDKCanary::PassOut(uint16_t end_pos, int speed_idx) {
+  // Move wings to pass out position and hold it
   // Note that the value of pulselen is inverted!
 
-  uint16_t pulselen = WINGS_DOWN;
-
-  // Up
-  for (; pulselen > WINGS_UP; pulselen--) {
-    pwm.setPWM(servo, 0, pulselen);
-    delay(3);
-  }
-
-  // Down
-  for (; pulselen < WINGS_DOWN; pulselen++) {
-    pwm.setPWM(servo, 0, pulselen);
-    delay(3);
+  for (; _pulselen > end_pos; _pulselen--) {
+    _pwm->setPWM(_servo, 0, _pulselen);
+    delay(speed_idx);
   }
 }
 
-void ESDKCanary::OpenWindow(Adafruit_PWMServoDriver pwm, int servo) {
-  // Move wings from start position (down) to up position
-  // and back to start position
-  // Note that the value of pulselen is inverted!
 
-  uint16_t pulselen = WINGS_DOWN;
+void ESDKCanary::Dead(uint16_t end_pos, int speed_idx) {
+  // Move servo past tipping point then retract wings.
+  // This position should only be recovered by resetting the system
 
-  // Up
-  for (; pulselen > WINGS_UP; pulselen--) {
-    pwm.setPWM(servo, 0, pulselen);
-    delay(3);
-  }
-
-  // Down
-  for (; pulselen < WINGS_DOWN; pulselen++) {
-    pwm.setPWM(servo, 0, pulselen);
-    delay(3);
+  for (; _pulselen > end_pos; _pulselen--) {
+    _pwm->setPWM(_servo, 0, _pulselen);
+    delay(speed_idx);
   }
 }
 
-void ESDKCanary::PassOut(Adafruit_PWMServoDriver pwm, int servo) {
-  // Move wings from start position (down) to pass out position
-  // and hold it
-  // Note that the value of pulselen is inverted!
-
-  uint16_t pulselen = WINGS_DOWN;
-
-  // Up
-  for (; pulselen > PASS_OUT_POS; pulselen--) {
-    pwm.setPWM(servo, 0, pulselen);
-    delay(3);
-  }
-}
-
-void ESDKCanary::ThatsBetter(Adafruit_PWMServoDriver pwm, int servo) {
-  // Move wings from pass out position to start position
-  // Note that the value of pulselen is inverted!
-
-  uint16_t pulselen = PASS_OUT_POS;
-
-  // Up
-  for (; pulselen < WINGS_DOWN; pulselen++) {
-    pwm.setPWM(servo, 0, pulselen);
-    delay(3);
-  }
-}
-
-void ESDKCanary::Dead(Adafruit_PWMServoDriver pwm, int servo) {
-  // Move servo past tipping point and enter an infinite loop
-  // which can only be recovered by resetting the system
-
-  uint16_t pulselen = WINGS_DOWN;
-
-  for (; pulselen > DEAD_POS; pulselen--) {
-    pwm.setPWM(servo, 0, pulselen);
-    delay(3);
-  }
-
-  delay(2000);
-
-  for (; pulselen < WINGS_UP; pulselen++) {
-    pwm.setPWM(servo, 0, pulselen);
-    delay(3);
-  }
-}
-
-void ESDKCanary::Tweet(Adafruit_Soundboard sfx, uint8_t track) {
-  Serial.println("Playing track");
-  if (! sfx.playTrack(track)) {
-    Serial.println("Failed to play track?");
-  }
-}
+/*
+//void ESDKCanary::Tweet(Adafruit_Soundboard sfx, uint8_t track) {
+  //Serial.println("Playing track");
+  //if (! sfx.playTrack(track)) {
+    //Serial.println("Failed to play track?");
+  //}
+//}
+*/

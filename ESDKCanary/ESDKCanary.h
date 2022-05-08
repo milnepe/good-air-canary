@@ -3,11 +3,7 @@
 
 #ifndef _ESDK_CANARY_H_
 #define _ESDK_CANARY_H_
-
-#define WINGS_DOWN 495
-#define WINGS_UP 445
-#define PASS_OUT_POS 225
-#define DEAD_POS 150
+#define WINGS_MID 470
 
 // Tracks
 #define YAWN_TRACK 0
@@ -19,16 +15,18 @@
 
 class ESDKCanary {
   public:
-    ESDKCanary();
-
-    void ServoInit(Adafruit_PWMServoDriver pwm, int servo);
-    void SlowInit(Adafruit_PWMServoDriver pwm, int servo);
-    void Flap(Adafruit_PWMServoDriver pwm, int servo);
-    void OpenWindow(Adafruit_PWMServoDriver pwm, int servo);
-    void PassOut(Adafruit_PWMServoDriver pwm, int servo);
-    void ThatsBetter(Adafruit_PWMServoDriver pwm, int servo);
-    void Dead(Adafruit_PWMServoDriver pwm, int servo);
-    void Tweet(Adafruit_Soundboard sfx, uint8_t track);
+    ESDKCanary(Adafruit_PWMServoDriver *pwm, int servo);
+ private:
+    Adafruit_PWMServoDriver *_pwm;
+    int _servo;
+    uint16_t _pulselen;
+ public:
+    uint16_t getPulselen();
+    void StartPos(uint16_t start_pos);
+    void Flap(uint16_t down_pos, uint16_t up_pos, int flaps, int speed_idx);
+    void PassOut(uint16_t end_pos, int speed_idx);
+    void Dead(uint16_t end_pos, int speed_idx);
+    //void Tweet(Adafruit_Soundboard sfx, uint8_t track);
 };
 
 #endif
