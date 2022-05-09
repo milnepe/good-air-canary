@@ -100,7 +100,7 @@ void loop() {
 
   myCanary.Tweet(PASS_OUT_TRACK, audioOn);
   Serial.println("Passing out...");
-  myCanary.PassOut(PASS_OUT_POS, 2);
+  myCanary.PassOut(PASS_OUT_POS, FAST);
   Serial.println(myCanary.getPulselen());
   delay(TIME_DELAY);
 
@@ -112,7 +112,7 @@ void loop() {
 
   myCanary.Tweet(DEAD_TRACK, audioOn);
   Serial.println("Dead...");
-  myCanary.Dead(DEAD_POS, 1);
+  myCanary.Dead(DEAD_POS, VFAST);
   Serial.println(myCanary.getPulselen());
   delay(TIME_DELAY);
 

@@ -14,7 +14,7 @@
 // Un-comment for debugging
 // In debug mode the system will not run until a serial monitor
 // is attached!
-//#define DEBUG
+#define DEBUG
 
 #include <WiFiNINA.h>
 #include "arduino_secrets.h"
@@ -54,12 +54,6 @@ int        port     = 1883;
 // ESDK topic root
 #define TOPIC "airquality/#"
 
-#define SERVO 0  // Flapping servo
-#define SERVO_FREQ 50 // Analog servos run at ~50 Hz
-
-// Connect to the RST pin on the Sound Board
-#define SFX_RST 4
-
 #define COLORED     0
 #define UNCOLORED   1
 
@@ -76,12 +70,6 @@ long lastReconnectWIFIAttempt = 0;
 PubSubClient mqttClient(wifiClient);
 long lastReconnectMQTTAttempt = 0;
 
-Adafruit_PWMServoDriver pwm = Adafruit_PWMServoDriver();  // Default address 0x40
-
-Adafruit_Soundboard sfx = Adafruit_Soundboard(&Serial1, NULL, SFX_RST);
-
-ESDKCanary myCanary = ESDKCanary();
-
 //unsigned long delayStart = 0; // time the delay started
 bool delayRunning = false; // true if still waiting for delay to finish
 
@@ -93,8 +81,6 @@ int pm = 1;
 
 volatile bool updateDisplayFlag = false;
 bool tombstoneFlag = false;
-
-uint16_t pulselen = 0;
 int prevSensorValue = 0;
 
 enum states {NORMAL, STUFFY, OPEN_WINDOW, PASS_OUT, THATS_BETTER, DEAD} state = NORMAL;
@@ -107,6 +93,38 @@ volatile boolean demo_mode = false;
 volatile boolean reentrant = true;
 
 int wifiState = WL_IDLE_STATUS;
+
+// Wing positions - adjust as required
+// If the servo is chattering at the end positions,
+// adjust the min or max value by 5ish
+#define WINGS_DOWN 485  // Max position
+#define WINGS_UP_A_BIT 400
+#define WINGS_UP_A_LOT 300
+#define PASS_OUT_POS 225
+#define DEAD_POS 150  // Min position
+
+// Audio track numbers
+#define YAWN_TRACK 0
+#define STUFFY_TRACK 1
+#define OPEN_WINDOW_TRACK 2
+#define PASS_OUT_TRACK 3
+#define THATS_BETTER_TRACK 4
+#define DEAD_TRACK 5
+
+#define TIME_DELAY 10000 // time delay in ms
+
+#define SERVO 0  // Flapping servo
+#define SERVO_FREQ 50 // Analog servos run at ~50 Hz
+
+#define SFX_RST 4 // Sound board RST pin
+
+// Servo board - default address 0x40
+Adafruit_PWMServoDriver pwm = Adafruit_PWMServoDriver();
+
+// Sound board connected to Serial1 - must be set to 9600 baud
+Adafruit_Soundboard sfx = Adafruit_Soundboard(&Serial1, NULL, SFX_RST);
+
+ESDKCanary myCanary = ESDKCanary(&sfx, &pwm, SERVO);
 
 void setup() {
   // Setup buttons
@@ -127,7 +145,7 @@ void setup() {
   }
 #endif
   Serial.println("Canary Controller");
-
+  // Serial 1 used for sound board at 9600 baud
   Serial1.begin(9600);
   while (!Serial1) {
     ; // wait for serial port to connect
@@ -154,27 +172,26 @@ void setup() {
 
   updateEPDGreeting();
 
-  // Setup sound board
-  if (!sfx.reset()) {
-    Serial.println("SFX board not found");
-    //while (1);
-  }
-  else Serial.println("SFX board attached");
-  myCanary.Tweet(sfx, YAWN_TRACK);
-
-  // Setup servo
-  pwm.begin();
-  pwm.setOscillatorFrequency(27000000);
-  pwm.setPWMFreq(SERVO_FREQ);  // Analog servos run at ~50 Hz updates
-  myCanary.ServoInit(pwm, SERVO);
-  Serial.println("Servo initialised");
-
   Serial.print("Attempting to connect to the MQTT broker: ");
   Serial.println(broker);
 
   mqttClient.setServer(broker, port);
   mqttClient.setCallback(callback);
   mqttClient.setBufferSize(384);
+
+  // Init sound board
+  if (!sfx.reset()) {
+    Serial.println("SFX board not found");
+  }
+  else Serial.println("SFX board attached");
+  myCanary.Tweet(YAWN_TRACK, audioOn);
+
+  // Init servo
+  pwm.begin();
+  pwm.setOscillatorFrequency(27000000);
+  pwm.setPWMFreq(SERVO_FREQ);  // Analog servos run at ~50 Hz updates
+  myCanary.StartPos(WINGS_DOWN);
+  Serial.println("Servo initialised");
 
   delay(5000);
 }
@@ -236,12 +253,8 @@ void updateCanary() {
         co2 += 1000;
         updateDisplayFlag = true;
       }
-      if (audioOn) {
-        myCanary.Tweet(sfx, STUFFY_TRACK);
-      }
-      myCanary.Flap(pwm, SERVO);
-      myCanary.Flap(pwm, SERVO);
-      myCanary.Flap(pwm, SERVO);
+      myCanary.Tweet(STUFFY_TRACK, audioOn);
+      myCanary.Flap(WINGS_DOWN, WINGS_UP_A_BIT, VSLOW, 3);
       break;
     case 2: // Open a window
       Serial.println("Open a window...");
@@ -249,12 +262,8 @@ void updateCanary() {
         co2 += 1000;
         updateDisplayFlag = true;
       }
-      if (audioOn) {
-        myCanary.Tweet(sfx, OPEN_WINDOW_TRACK);
-      }
-      myCanary.OpenWindow(pwm, SERVO);
-      myCanary.OpenWindow(pwm, SERVO);
-      myCanary.OpenWindow(pwm, SERVO);
+      myCanary.Tweet(OPEN_WINDOW_TRACK, audioOn);
+      myCanary.Flap(WINGS_DOWN, WINGS_UP_A_LOT, FAST, 4);
       break;
     case 3: // Pass out
       Serial.println("Pass out...");
@@ -262,25 +271,19 @@ void updateCanary() {
         co2 += 1000;
         updateDisplayFlag = true;
       }
-      if (audioOn) {
-        myCanary.Tweet(sfx, PASS_OUT_TRACK);
-      }
-      myCanary.PassOut(pwm, SERVO);
+      myCanary.Tweet(PASS_OUT_TRACK, audioOn);
+      myCanary.PassOut(PASS_OUT_POS, FAST);
       break;
     case 4: // Thats better
       Serial.println("That's better...");
-      if (audioOn) {
-        myCanary.Tweet(sfx, THATS_BETTER_TRACK);
-      }
-      myCanary.ThatsBetter(pwm, SERVO);
+      myCanary.Tweet(THATS_BETTER_TRACK, audioOn);
+      myCanary.StartPos(WINGS_DOWN);
       break;
     case 5: // Dead
       Serial.println("Dead...");
-      if (audioOn) {
-        myCanary.Tweet(sfx, DEAD_TRACK);
-      }
+      myCanary.Tweet(DEAD_TRACK, audioOn);
       if (demo_mode) {
-        myCanary.PassOut(pwm, SERVO);
+        myCanary.PassOut(PASS_OUT_POS, FAST);
         displayTombStone();
         delay(5000);
         displayClear();
@@ -296,7 +299,7 @@ void updateCanary() {
 #endif
         updateCanary();
       } else {
-        myCanary.Dead(pwm, SERVO);
+        myCanary.Dead(DEAD_POS, VFAST);
         displayTombStone();
         delay(5000);
         displayClear();
