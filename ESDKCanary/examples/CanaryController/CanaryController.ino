@@ -83,8 +83,9 @@ volatile bool updateDisplayFlag = false;
 bool tombstoneFlag = false;
 int prevSensorValue = 0;
 
-enum states {NORMAL, STUFFY, OPEN_WINDOW, PASS_OUT, THATS_BETTER, DEAD} state = NORMAL;
-enum states previousState = NORMAL;
+//enum states {NORMAL, STUFFY, OPEN_WINDOW, PASS_OUT, THATS_BETTER, DEAD, DEMO_DEAD} state = NORMAL;
+//enum States {NORMAL, STUFFY, OPEN_WINDOW, PASS_OUT, THATS_BETTER, DEAD, DEMO_DEAD};
+enum States {THATS_BETTER, STUFFY, OPEN_WINDOW, PASS_OUT, DEAD, DEMO_DEAD};
 
 // Button code
 enum buttons {LEFT_BUTTON = 2, RIGHT_BUTTON = 3, DEMO_BUTTON = 9};
@@ -235,79 +236,52 @@ void loop() {
   unsigned long currentMillis = millis();
   if (currentMillis - previousMillis >= delay_time) {
     previousMillis = currentMillis;
-    updateCanary();
+    updateState(co2);
   }
 }
 
-void updateCanary() {
-  switch (state = getState(previousState, co2)) {
-    case 0: // Normal do nothing
-      if (demo_mode) {
-        co2 += 1000;
-        updateDisplayFlag = true;
-      }
-      break;
-    case 1: // Stuffy
-      Serial.println("Stuffy...");
-      if (demo_mode) {
-        co2 += 1000;
-        updateDisplayFlag = true;
-      }
-      myCanary.Tweet(STUFFY_TRACK, audioOn);
-      myCanary.Flap(WINGS_DOWN, WINGS_UP_A_BIT, VSLOW, 3);
-      break;
-    case 2: // Open a window
-      Serial.println("Open a window...");
-      if (demo_mode) {
-        co2 += 1000;
-        updateDisplayFlag = true;
-      }
-      myCanary.Tweet(OPEN_WINDOW_TRACK, audioOn);
-      myCanary.Flap(WINGS_DOWN, WINGS_UP_A_LOT, FAST, 4);
-      break;
-    case 3: // Pass out
-      Serial.println("Pass out...");
-      if (demo_mode) {
-        co2 += 1000;
-        updateDisplayFlag = true;
-      }
-      myCanary.Tweet(PASS_OUT_TRACK, audioOn);
-      myCanary.PassOut(PASS_OUT_POS, FAST);
-      break;
-    case 4: // Thats better
+void updateCanary(States state) {
+  switch (state) {
+    case THATS_BETTER:
       Serial.println("That's better...");
       myCanary.Tweet(THATS_BETTER_TRACK, audioOn);
       myCanary.StartPos(WINGS_DOWN);
       break;
-    case 5: // Dead
+    case STUFFY:
+      Serial.println("Stuffy...");
+      updateDisplayFlag = true;
+      myCanary.Tweet(STUFFY_TRACK, audioOn);
+      myCanary.Flap(WINGS_DOWN, WINGS_UP_A_BIT, VSLOW, 3);
+      break;
+    case OPEN_WINDOW:
+      Serial.println("Open a window...");
+      updateDisplayFlag = true;
+      myCanary.Tweet(OPEN_WINDOW_TRACK, audioOn);
+      myCanary.Flap(WINGS_DOWN, WINGS_UP_A_LOT, FAST, 4);
+      break;
+    case PASS_OUT:
+      Serial.println("Pass out...");
+      updateDisplayFlag = true;
+      myCanary.Tweet(PASS_OUT_TRACK, audioOn);
+      myCanary.PassOut(PASS_OUT_POS, FAST);
+    case DEAD:
       Serial.println("Dead...");
       myCanary.Tweet(DEAD_TRACK, audioOn);
-      if (demo_mode) {
-        myCanary.PassOut(PASS_OUT_POS, FAST);
-        displayTombStone();
-        delay(5000);
-        displayClear();
-        co2 = 400;
-        updateDisplayFlag = true;
-        demo_mode = false;
-        //        myCanary.SlowInit(pwm, SERVO);
-        delay(2000);
-#ifdef DEBUG
-        delay_time = DEMO_DELAY;
-#else
-        delay_time = NORMAL_DELAY;
-#endif
-        updateCanary();
-      } else {
-        myCanary.Dead(DEAD_POS, VFAST);
-        displayTombStone();
-        delay(5000);
-        displayClear();
-        while (1);// Program ends!! Reboot
-        //        tombstoneFlag = true;
-      }
+      myCanary.Dead(DEAD_POS, VFAST);
+      displayTombStone();
+      delay(5000);
+      displayClear();
+      while (1);// Program ends!! Reboot
+      break;
+    case DEMO_DEAD: // Dead
+      Serial.println("Demo dead...");
+      myCanary.Tweet(DEAD_TRACK, audioOn);
+      myCanary.PassOut(PASS_OUT_POS, FAST);
+      displayTombStone();
+      delay(5000);
+      displayClear();
+      myCanary.StartPos(WINGS_DOWN);
   }
-  previousState = state;
 }
 
 // Toggle audio on / off
@@ -326,13 +300,15 @@ void rightButtonIsr() {
 }
 
 // Sets the rules for changing state
-states getState(states previousState, int co2) {
-  states state;
+void updateState(int co2) {
+  static States previousState = DEAD;
+  States state = THATS_BETTER;
+
   if ((previousState == PASS_OUT) && (co2 < PASS_OUT_CO2)) {
     state = THATS_BETTER;
   }
   else if (co2 < STUFFY_CO2) {
-    state = NORMAL;
+    state = THATS_BETTER;
   }
   else if (co2 < OPEN_WINDOW_CO2) {
     state = STUFFY;
@@ -344,7 +320,12 @@ states getState(states previousState, int co2) {
     state = PASS_OUT;
   }
   else state = DEAD;
-  return state;
+
+  // Update canary if state has changed
+  if ( state != previousState ) {
+    previousState = state;
+    updateCanary(state);
+  }
 }
 
 void reconnectWiFi() {
@@ -399,7 +380,6 @@ void callback(char* topic, byte * payload, unsigned int length) {
   updateDisplayFlag = true;
   if (reentrant) {
     reentrant = false;
-    updateCanary();
   }
 }
 
