@@ -327,6 +327,7 @@ void reconnectWiFi() {
   Serial.print("Wifi Status: ");
   Serial.println(WiFi.status());
 #endif
+    mqttClient.disconnect();
   // WL_IDLE_STATUS     = 0
   // WL_NO_SSID_AVAIL   = 1
   // WL_SCAN_COMPLETED  = 2
