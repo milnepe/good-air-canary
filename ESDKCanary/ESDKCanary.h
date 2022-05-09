@@ -23,7 +23,7 @@ class ESDKCanary {
     void Flap(uint16_t down_pos, uint16_t up_pos, int speed_idx, int flaps);
     void PassOut(uint16_t end_pos, int speed_idx);
     void Dead(uint16_t end_pos, int speed_idx);
-    void Tweet(uint8_t track);
+    void Tweet(uint8_t track, boolean audio);
 };
 
 #endif

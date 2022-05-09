@@ -65,9 +65,11 @@ void ESDKCanary::Dead(uint16_t end_pos, int speed_idx) {
   }
 }
 
-void ESDKCanary::Tweet(uint8_t track) {
+void ESDKCanary::Tweet(uint8_t track, boolean audio = true) {
   Serial.println("Playing track");
-  if (! _sfx->playTrack(track)) {
-    Serial.println("Failed to play track?");
+  if (audio) {
+    if (! _sfx->playTrack(track)) {
+      Serial.println("Failed to play track?");
+    }
   }
 }

@@ -49,6 +49,8 @@ Adafruit_Soundboard sfx = Adafruit_Soundboard(&Serial1, NULL, SFX_RST);
 
 ESDKCanary myCanary = ESDKCanary(&sfx, &pwm, SERVO);
 
+volatile boolean audioOn = true; // Audio is on
+
 void setup() {
   Serial.begin(115200);
   while (!Serial) {
@@ -68,7 +70,7 @@ void setup() {
     Serial.println("SFX board not found");
   }
   else Serial.println("SFX board attached");
-  myCanary.Tweet(YAWN_TRACK);
+  myCanary.Tweet(YAWN_TRACK, audioOn);
 
   // Init servo
   pwm.begin();
@@ -83,32 +85,32 @@ void setup() {
 }
 
 void loop() {
-  myCanary.Tweet(STUFFY_TRACK);
+  myCanary.Tweet(STUFFY_TRACK, audioOn);
   Serial.println("Flapping...");
   myCanary.Flap(WINGS_DOWN, WINGS_UP_A_BIT, VSLOW, 3);
   // Displays pulse length at end of movement
   Serial.println(myCanary.getPulselen());
   delay(TIME_DELAY);
 
-  myCanary.Tweet(OPEN_WINDOW_TRACK);
+  myCanary.Tweet(OPEN_WINDOW_TRACK, audioOn);
   Serial.println("Flapping frantically...");
   myCanary.Flap(WINGS_DOWN, WINGS_UP_A_LOT, FAST, 4);
   Serial.println(myCanary.getPulselen());
   delay(TIME_DELAY);
 
-  myCanary.Tweet(PASS_OUT_TRACK);
+  myCanary.Tweet(PASS_OUT_TRACK, audioOn);
   Serial.println("Passing out...");
   myCanary.PassOut(PASS_OUT_POS, 2);
   Serial.println(myCanary.getPulselen());
   delay(TIME_DELAY);
 
-  myCanary.Tweet(THATS_BETTER_TRACK);
+  myCanary.Tweet(THATS_BETTER_TRACK, audioOn);
   Serial.println("Returning to start...");
   myCanary.StartPos(WINGS_DOWN);
   Serial.println(myCanary.getPulselen());
   delay(TIME_DELAY);
 
-  myCanary.Tweet(DEAD_TRACK);
+  myCanary.Tweet(DEAD_TRACK, audioOn);
   Serial.println("Dead...");
   myCanary.Dead(DEAD_POS, 1);
   Serial.println(myCanary.getPulselen());
