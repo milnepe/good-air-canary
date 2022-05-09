@@ -28,10 +28,12 @@
 #include "ArduinoJson.h"
 
 // CO2 levels - change to suit your environment
+#define NORMAL_CO2 400
 #define STUFFY_CO2 1000  // CO2 ppm
 #define OPEN_WINDOW_CO2 2000
 #define PASS_OUT_CO2 3000
 #define DEAD_CO2 4000
+#define DEMO_DEAD_CO2 5000
 
 #define NORMAL_DELAY 30 * 60 * 1000  // 30 mins default
 #define DEMO_DELAY 10 * 1000    // 10 sec for debug
@@ -90,7 +92,7 @@ enum States {THATS_BETTER, STUFFY, OPEN_WINDOW, PASS_OUT, DEAD, DEMO_DEAD};
 // Button code
 enum buttons {LEFT_BUTTON = 2, RIGHT_BUTTON = 3, DEMO_BUTTON = 9};
 volatile boolean audioOn = true;
-volatile boolean demo_mode = false;
+volatile boolean demoMode = false;
 volatile boolean reentrant = true;
 
 int wifiState = WL_IDLE_STATUS;
@@ -198,14 +200,8 @@ void setup() {
 }
 
 void loop() {
-  if (demo_mode) {
-    if (WiFi.status() == WL_CONNECTED) {
-      mqttClient.disconnect();
-      WiFi.disconnect();
-      wifiState = WiFi.status();
-      delay(1000);
-    }
-
+  if (demoMode) {
+    doDemo();
   } else {  // WiFi mode
     // Attempt to reconnect - Wifi.begin blocks until connect or failure
     if (WiFi.status() != WL_CONNECTED) {
@@ -226,17 +222,38 @@ void loop() {
     } else {
       mqttClient.loop();
     }
+
+    if (updateDisplayFlag) {
+      updateDisplayFlag = false;
+      updateEPD();
+    }
+
+    unsigned long currentMillis = millis();
+    if (currentMillis - previousMillis >= delay_time) {
+      previousMillis = currentMillis;
+      updateState(co2);
+    }
+  }
+}
+
+void doDemo() {
+  // Simulate co2 values
+  int  co2_array[] = {NORMAL_CO2, STUFFY_CO2, OPEN_WINDOW_CO2, PASS_OUT_CO2, DEMO_DEAD_CO2};
+
+  updateEPD();
+  Serial.println("Entering demo mode");
+  if (WiFi.status() == WL_CONNECTED) {
+    mqttClient.disconnect();
+    WiFi.disconnect();
+    wifiState = WiFi.status();
+    delay(1000);
   }
 
-  if (updateDisplayFlag) {
-    updateDisplayFlag = false;
+  for (int i = 0; i < sizeof(co2_array) / sizeof(co2_array[0]); i++) {
+    co2 = co2_array[i];
     updateEPD();
-  }
-
-  unsigned long currentMillis = millis();
-  if (currentMillis - previousMillis >= delay_time) {
-    previousMillis = currentMillis;
     updateState(co2);
+    delay(5000);
   }
 }
 
@@ -249,13 +266,11 @@ void updateCanary(States state) {
       break;
     case STUFFY:
       Serial.println("Stuffy...");
-      updateDisplayFlag = true;
       myCanary.Tweet(STUFFY_TRACK, audioOn);
       myCanary.Flap(WINGS_DOWN, WINGS_UP_A_BIT, VSLOW, 3);
       break;
     case OPEN_WINDOW:
       Serial.println("Open a window...");
-      updateDisplayFlag = true;
       myCanary.Tweet(OPEN_WINDOW_TRACK, audioOn);
       myCanary.Flap(WINGS_DOWN, WINGS_UP_A_LOT, FAST, 4);
       break;
@@ -264,6 +279,7 @@ void updateCanary(States state) {
       updateDisplayFlag = true;
       myCanary.Tweet(PASS_OUT_TRACK, audioOn);
       myCanary.PassOut(PASS_OUT_POS, FAST);
+      break;
     case DEAD:
       Serial.println("Dead...");
       myCanary.Tweet(DEAD_TRACK, audioOn);
@@ -273,8 +289,10 @@ void updateCanary(States state) {
       displayClear();
       while (1);// Program ends!! Reboot
       break;
-    case DEMO_DEAD: // Dead
+    case DEMO_DEAD:
       Serial.println("Demo dead...");
+      myCanary.StartPos(WINGS_DOWN);
+      delay(2000);
       myCanary.Tweet(DEAD_TRACK, audioOn);
       myCanary.PassOut(PASS_OUT_POS, FAST);
       displayTombStone();
@@ -292,11 +310,8 @@ void leftButtonIsr() {
 
 // Enter demo mode
 void rightButtonIsr() {
-  demo_mode = true;
-  delay_time = DEMO_DELAY;
+  demoMode = true;
   audioOn = true;
-  co2 = 400;
-  reentrant = true;
 }
 
 // Sets the rules for changing state
@@ -319,7 +334,10 @@ void updateState(int co2) {
   else if (co2 < DEAD_CO2) {
     state = PASS_OUT;
   }
-  else state = DEAD;
+  else if (co2 < DEMO_DEAD_CO2) {
+    state = DEAD;
+  }
+  else state = DEMO_DEAD;
 
   // Update canary if state has changed
   if ( state != previousState ) {
@@ -534,7 +552,7 @@ void updateEPD() {
   epd.SetFrameMemory_Partial(paint.GetImage(), 0, 40, paint.GetWidth(), paint.GetHeight());
 
   paint.Clear(UNCOLORED);
-  if (demo_mode) {
+  if (demoMode) {
     paint.DrawStringAt(0, 0, "Demo Mode", &Font16, COLORED);
   }
   else if ((audioOn) && (wifiState == WL_CONNECTED)) {
