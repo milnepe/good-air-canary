@@ -1,5 +1,10 @@
 #include "ESDKCanary.h"
 
+ESDKCanary::ESDKCanary(Adafruit_Soundboard *sfx, Adafruit_PWMServoDriver *pwm, int servo)
+  :ESDKCanary(pwm, servo) {
+  _sfx = sfx;
+}
+
 ESDKCanary::ESDKCanary(Adafruit_PWMServoDriver *pwm, int servo) {
   _pwm = pwm;
   _servo = servo;
@@ -18,7 +23,7 @@ void ESDKCanary::StartPos(uint16_t start_pos) {
   }
 }
 
-void ESDKCanary::Flap(uint16_t down_pos, uint16_t up_pos, int flaps, int speed_idx) {
+void ESDKCanary::Flap(uint16_t down_pos, uint16_t up_pos, int speed_idx, int flaps) {
   // Move wings back and fourth
   // Note that the value of pulselen is inverted!
   // speed_idx  0 is fastest
@@ -60,11 +65,9 @@ void ESDKCanary::Dead(uint16_t end_pos, int speed_idx) {
   }
 }
 
-/*
-//void ESDKCanary::Tweet(Adafruit_Soundboard sfx, uint8_t track) {
-  //Serial.println("Playing track");
-  //if (! sfx.playTrack(track)) {
-    //Serial.println("Failed to play track?");
-  //}
-//}
-*/
+void ESDKCanary::Tweet(uint8_t track) {
+  Serial.println("Playing track");
+  if (! _sfx->playTrack(track)) {
+    Serial.println("Failed to play track?");
+  }
+}
