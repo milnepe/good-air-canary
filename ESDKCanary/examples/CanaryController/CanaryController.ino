@@ -12,8 +12,7 @@
 
  ****************************************************/
 // Un-comment for debugging
-// In debug mode the system will not run until a serial monitor
-// is attached!
+// In debug mode the system will not run until a serial monitor is attached!
 #define DEBUG
 
 #include <WiFiNINA.h>
@@ -34,18 +33,6 @@
 #define PASS_OUT_CO2 3000
 #define DEAD_CO2 4000
 #define DEMO_DEAD_CO2 5000
-
-#define NORMAL_DELAY 30 * 60 * 1000  // 30 mins default
-#define DEMO_DELAY 10 * 1000    // 10 sec for debug
-
-#ifdef DEBUG
-volatile unsigned long delay_time = DEMO_DELAY;
-#else
-// Interval between audio / physical warnings - change if it's
-// nagging you too often
-unsigned long delay_time = NORMAL_DELAY;
-#endif
-unsigned long previousMillis = 0;
 
 // ESDK MQTT server name
 // You may need to substiture its IP address on your network
@@ -72,9 +59,6 @@ long lastReconnectWIFIAttempt = 0;
 PubSubClient mqttClient(wifiClient);
 long lastReconnectMQTTAttempt = 0;
 
-//unsigned long delayStart = 0; // time the delay started
-bool delayRunning = false; // true if still waiting for delay to finish
-
 volatile int co2 = 400;
 double temperature = 21.0;
 double humidity = 40.0;
@@ -93,7 +77,6 @@ enum States {THATS_BETTER, STUFFY, OPEN_WINDOW, PASS_OUT, DEAD, DEMO_DEAD};
 enum buttons {LEFT_BUTTON = 2, RIGHT_BUTTON = 3, DEMO_BUTTON = 9};
 volatile boolean audioOn = true;
 volatile boolean demoMode = false;
-volatile boolean reentrant = true;
 
 int wifiState = WL_IDLE_STATUS;
 
@@ -113,8 +96,6 @@ int wifiState = WL_IDLE_STATUS;
 #define PASS_OUT_TRACK 3
 #define THATS_BETTER_TRACK 4
 #define DEAD_TRACK 5
-
-#define TIME_DELAY 10000 // time delay in ms
 
 #define SERVO 0  // Flapping servo
 #define SERVO_FREQ 50 // Analog servos run at ~50 Hz
@@ -228,11 +209,7 @@ void loop() {
       updateEPD();
     }
 
-    unsigned long currentMillis = millis();
-    if (currentMillis - previousMillis >= delay_time) {
-      previousMillis = currentMillis;
-      updateState(co2);
-    }
+    updateState(co2);
   }
 }
 
@@ -276,7 +253,6 @@ void updateCanary(States state) {
       break;
     case PASS_OUT:
       Serial.println("Pass out...");
-      updateDisplayFlag = true;
       myCanary.Tweet(PASS_OUT_TRACK, audioOn);
       myCanary.PassOut(PASS_OUT_POS, FAST);
       break;
@@ -396,9 +372,6 @@ void callback(char* topic, byte * payload, unsigned int length) {
   pm = doc["pm"]["pm2.5"];
 
   updateDisplayFlag = true;
-  if (reentrant) {
-    reentrant = false;
-  }
 }
 
 void updateEPDGreeting() {
