@@ -57,7 +57,7 @@ char pass[] = SECRET_PASS;  // WPA key
 WiFiClient wifiClient;
 long lastReconnectWIFIAttempt = 0;
 PubSubClient mqttClient(wifiClient);
-long lastReconnectMQTTAttempt = 0;
+unsigned long lastReconnectMQTTAttempt = 0;
 
 volatile int co2 = 400;
 double temperature = 21.0;
@@ -192,8 +192,8 @@ void loop() {
     }
 
     // Attempt to reconnect without blocking
-    if (!mqttClient.connected()) {
-      long now = millis();
+    if ((!mqttClient.connected()) && (WiFi.status() == WL_CONNECTED)) {
+      unsigned long now = millis();
       if (now - lastReconnectMQTTAttempt > 5000) {
         lastReconnectMQTTAttempt = now;
         if (reconnectMQTT()) {
@@ -327,7 +327,7 @@ void reconnectWiFi() {
   Serial.print("Wifi Status: ");
   Serial.println(WiFi.status());
 #endif
-    mqttClient.disconnect();
+  mqttClient.disconnect();
   // WL_IDLE_STATUS     = 0
   // WL_NO_SSID_AVAIL   = 1
   // WL_SCAN_COMPLETED  = 2
@@ -344,6 +344,9 @@ void reconnectWiFi() {
 }
 
 boolean reconnectMQTT() {
+  Serial.println("Disconnecting MQTT");
+  mqttClient.disconnect();
+  delay(2000);
   if (mqttClient.connect("arduinoClient")) {
     mqttClient.subscribe("airquality/#");
     Serial.println("MQTT connected");
