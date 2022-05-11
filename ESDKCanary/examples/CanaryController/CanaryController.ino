@@ -55,15 +55,15 @@ char ssid[] = SECRET_SSID;  // Network SSID
 char pass[] = SECRET_PASS;  // WPA key
 
 WiFiClient wifiClient;
-long lastReconnectWIFIAttempt = 0;
 PubSubClient mqttClient(wifiClient);
 unsigned long lastReconnectMQTTAttempt = 0;
+unsigned long lastHeartBeat = 0;
 
 volatile int co2 = 400;
-double temperature = 21.0;
-double humidity = 40.0;
-int tvoc = 100;
-int pm = 1;
+volatile double temperature = 21.0;
+volatile double humidity = 40.0;
+volatile int tvoc = 100;
+volatile int pm = 1;
 
 volatile bool updateDisplayFlag = false;
 bool tombstoneFlag = false;
@@ -110,12 +110,17 @@ Adafruit_Soundboard sfx = Adafruit_Soundboard(&Serial1, NULL, SFX_RST);
 
 ESDKCanary myCanary = ESDKCanary(&sfx, &pwm, SERVO);
 
+const int ledPin = 10;// the number of the LED pin
+int ledState = LOW;
+
 void setup() {
   // Setup buttons
   pinMode(LEFT_BUTTON, INPUT);
   pinMode(RIGHT_BUTTON, INPUT);
   //  pinMode(DEMO_BUTTON, INPUT);
-  //  pinMode(isrLED, OUTPUT);
+  pinMode(ledPin, OUTPUT);
+  digitalWrite(ledPin, ledState);
+  //    pinMode(isrLED, OUTPUT);
   //  digitalWrite(isrLED, HIGH);
   attachInterrupt(digitalPinToInterrupt(LEFT_BUTTON), leftButtonIsr, FALLING);
   // DEMO_BUTTON duplicates the RIGHT_BUTTON function - activates demo
@@ -181,26 +186,33 @@ void setup() {
 }
 
 void loop() {
+  unsigned long now = millis();
+  if (now - lastHeartBeat >= 1000) {
+    lastHeartBeat = now;
+    digitalWrite(ledPin, ledState);
+    ledState = !ledState;
+  }
+
   if (demoMode) {
     doDemo();
-  } else {  // WiFi mode
+  }
+  else {
     // Attempt to reconnect - Wifi.begin blocks until connect or failure
     if (WiFi.status() != WL_CONNECTED) {
       Serial.println("WiFi mode...");
-      updateEPD();
       reconnectWiFi();
+      updateDisplayFlag = true;
     }
 
     // Attempt to reconnect without blocking
     if ((!mqttClient.connected()) && (WiFi.status() == WL_CONNECTED)) {
-      unsigned long now = millis();
-      if (now - lastReconnectMQTTAttempt > 5000) {
+      now = millis();
+      if (now - lastReconnectMQTTAttempt >= 5000) {
         lastReconnectMQTTAttempt = now;
-        if (reconnectMQTT()) {
-          lastReconnectMQTTAttempt = 0;
-        }
+        reconnectMQTT();
       }
-    } else {
+    }
+    else {
       mqttClient.loop();
     }
 
@@ -217,7 +229,6 @@ void doDemo() {
   // Simulate co2 values
   int  co2_array[] = {NORMAL_CO2, STUFFY_CO2, OPEN_WINDOW_CO2, PASS_OUT_CO2, DEMO_DEAD_CO2};
 
-  updateEPD();
   Serial.println("Entering demo mode");
   if (WiFi.status() == WL_CONNECTED) {
     mqttClient.disconnect();
@@ -281,7 +292,7 @@ void updateCanary(States state) {
 // Toggle audio on / off
 void leftButtonIsr() {
   audioOn = ! audioOn;
-  updateEPD();
+  updateDisplayFlag = true;
 }
 
 // Enter demo mode
@@ -327,7 +338,7 @@ void reconnectWiFi() {
   Serial.print("Wifi Status: ");
   Serial.println(WiFi.status());
 #endif
-  mqttClient.disconnect();
+  //  mqttClient.disconnect();
   // WL_IDLE_STATUS     = 0
   // WL_NO_SSID_AVAIL   = 1
   // WL_SCAN_COMPLETED  = 2
@@ -345,8 +356,10 @@ void reconnectWiFi() {
 
 boolean reconnectMQTT() {
   Serial.println("Disconnecting MQTT");
-  mqttClient.disconnect();
-  delay(2000);
+  //  mqttClient.disconnect();
+  Serial.print("Wifi state reconnectMQTT: ");
+  Serial.println(WiFi.status());
+  //  delay(2000);
   if (mqttClient.connect("arduinoClient")) {
     mqttClient.subscribe("airquality/#");
     Serial.println("MQTT connected");
@@ -356,15 +369,15 @@ boolean reconnectMQTT() {
 
 // Update sensor variables each time a message is received
 void callback(char* topic, byte * payload, unsigned int length) {
-#ifdef DEBUG
-  Serial.print("Message arrived [");
-  Serial.print(topic);
-  Serial.print("] ");
-  for (int i = 0; i < length; i++) {
-    Serial.print((char)payload[i]);
-  }
-  Serial.println();
-#endif
+  //#ifdef DEBUG
+  //  Serial.print("Message arrived [");
+  //  Serial.print(topic);
+  //  Serial.print("] ");
+  //  for (int i = 0; i < length; i++) {
+  //    Serial.print((char)payload[i]);
+  //  }
+  //  Serial.println();
+  //#endif
   // ESDK sends a large JSON payload
   // - ensure you have enough memory allocated
   StaticJsonDocument<384> doc;
