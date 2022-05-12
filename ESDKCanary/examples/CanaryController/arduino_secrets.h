@@ -1,2 +1,2 @@
-#define SECRET_SSID "PLUSNET-56P6"
-#define SECRET_PASS "e9d29ae5ad"
+#define SECRET_SSID ""
+#define SECRET_PASS ""
