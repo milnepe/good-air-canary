@@ -21,13 +21,17 @@
 const char server[] = "airquality";
 int        port     = 1883;
 
-const int ledPin = 10;
-int ledState = LOW;
+const int cbLed = 10; // Red
+int cbLedState = LOW;
+
+const int wifiLed = 9;  // Green
+const int mqttLed = 12;  // Yellow
+
 
 void callback(char* topic, byte* payload, unsigned int length) {
   // handle message arrived
-  digitalWrite(ledPin, ledState);
-  ledState = !ledState;
+  digitalWrite(cbLed, cbLedState);
+  cbLedState = !cbLedState;
 }
 
 /////// Enter sensitive data in arduino_secrets.h
@@ -51,7 +55,7 @@ int reconnectWiFi() {
 
   // Force a disconnect
   WiFi.disconnect();
-  delay(1500);
+  delay(1000);
   WiFi.begin(ssid, pass);
   return WiFi.status();
 }
@@ -68,8 +72,12 @@ boolean reconnect() {
 
 void setup()
 {
-  pinMode(ledPin, OUTPUT);
-  digitalWrite(ledPin, ledState);
+  pinMode(cbLed, OUTPUT);
+  digitalWrite(cbLed, LOW);
+  pinMode(wifiLed, OUTPUT);
+  digitalWrite(wifiLed, LOW);
+  pinMode(mqttLed, OUTPUT);
+  digitalWrite(mqttLed, LOW);
 
   mqttClient.setServer(server, 1883);
   mqttClient.setCallback(callback);
@@ -81,11 +89,14 @@ void setup()
 void loop()
 {
   if (WiFi.status() != WL_CONNECTED) {
+    digitalWrite(wifiLed, LOW);
     reconnectWiFi();
-    delay(1500);
+    delay(2000);
+    digitalWrite(wifiLed, HIGH);
   }
 
   if (!mqttClient.connected()) {
+    digitalWrite(mqttLed, LOW);
     long now = millis();
     if (now - lastReconnectAttempt > 5000) {
       lastReconnectAttempt = now;
@@ -93,6 +104,7 @@ void loop()
       if (reconnect()) {
         lastReconnectAttempt = 0;
       }
+      digitalWrite(mqttLed, HIGH);
     }
   } else {
     // mqttClient connected
