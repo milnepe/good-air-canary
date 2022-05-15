@@ -1,6 +1,8 @@
 /*
   Test Reconnecting MQTT - non-blocking
 
+  Run mqtt-test.py on ESDK to publish test message
+
   Modified example from PubSubClient lib
 
   This sketch demonstrates how to keep the client connected
