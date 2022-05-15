@@ -1,0 +1,117 @@
+Check mosquitto log
+sudo tail -n200 -f /var/log/mosquitto/mosquitto.log
+
+WiFiNINA firmware check.
+
+Firmware version installed: 1.3.0
+Latest firmware version available : 1.4.8
+
+Check result: NOT PASSED
+ - The firmware version on the module does not match the
+   version required by the library, you may experience
+   issues or failures.
+
+FQBN
+pmilne@gigabyte:~/Work/RS/canaries/good-air-canary$ arduino-cli board list
+
+arduino:samd:nano_33_iot arduino:samd
+
+Flash new firmware
+https://arduino.github.io/arduino-fwuploader/2.2/
+
+cd /home/pmilne/arduino-fwuploader_2.2.0_Linux_64bit/
+./arduino-fwuploader firmware flash -b arduino:samd:nano_33_iot -a /dev/ttyACM0
+
+Set binary mode
+readWord(addr=0)=0x20007ffc
+readWord(addr=0xe000ed00)=0x410cc601
+readWord(addr=0x41002018)=0x10010305
+version()=v2.0 [Arduino:XYZ] Apr 19 2019 14:38:48
+chipId=0x10010005
+Connected at 921600 baud
+readWord(addr=0)=0x20007ffc
+readWord(addr=0xe000ed00)=0x410cc601
+readWord(addr=0x41002018)=0x10010305
+Atmel SMART device 0x10010005 found
+write(addr=0x20004000,size=0x34)
+writeWord(addr=0x20004030,value=0x10)
+writeWord(addr=0x20004020,value=0x20008000)
+Device       : ATSAMD21G18A
+readWord(addr=0)=0x20007ffc
+readWord(addr=0xe000ed00)=0x410cc601
+readWord(addr=0x41002018)=0x10010305
+Chip ID      : 10010005
+version()=v2.0 [Arduino:XYZ] Apr 19 2019 14:38:48
+Version      : v2.0 [Arduino:XYZ] Apr 19 2019 14:38:48
+Address      : 8192
+Pages        : 3968
+Page Size    : 64 bytes
+Total Size   : 248KB
+Planes       : 1
+Lock Regions : 16
+Locked       : readWord(addr=0x41004020)=0xffff
+readWord(addr=0x41004020)=0xffff
+readWord(addr=0x41004020)=0xffff
+readWord(addr=0x41004020)=0xffff
+readWord(addr=0x41004020)=0xffff
+readWord(addr=0x41004020)=0xffff
+readWord(addr=0x41004020)=0xffff
+readWord(addr=0x41004020)=0xffff
+readWord(addr=0x41004020)=0xffff
+readWord(addr=0x41004020)=0xffff
+readWord(addr=0x41004020)=0xffff
+readWord(addr=0x41004020)=0xffff
+readWord(addr=0x41004020)=0xffff
+readWord(addr=0x41004020)=0xffff
+readWord(addr=0x41004020)=0xffff
+readWord(addr=0x41004020)=0xffff
+none
+readWord(addr=0x41004018)=0
+Security     : false
+Boot Flash   : true
+readWord(addr=0x40000834)=0x7000a
+BOD          : true
+readWord(addr=0x40000834)=0x7000a
+BOR          : true
+Arduino      : FAST_CHIP_ERASE
+Arduino      : FAST_MULTI_PAGE_WRITE
+Arduino      : CAN_CHECKSUM_MEMORY_BUFFER
+Erase flash
+chipErase(addr=0x2000)
+done in 0.849 seconds
+
+Write 14348 bytes to flash (225 pages)
+write(addr=0x20005000,size=0x1000)
+writeBuffer(scr_addr=0x20005000, dst_addr=0x2000, size=0x1000)
+[========                      ] 28% (64/225 pages)write(addr=0x20005000,size=0x1000)
+writeBuffer(scr_addr=0x20005000, dst_addr=0x3000, size=0x1000)
+[=================             ] 56% (128/225 pages)write(addr=0x20005000,size=0x1000)
+writeBuffer(scr_addr=0x20005000, dst_addr=0x4000, size=0x1000)
+[=========================     ] 85% (192/225 pages)write(addr=0x20005000,size=0x840)
+writeBuffer(scr_addr=0x20005000, dst_addr=0x5000, size=0x840)
+[==============================] 100% (225/225 pages)
+done in 0.086 seconds
+
+Verify 14348 bytes of flash with checksum.
+checksumBuffer(start_addr=0x2000, size=0x1000) = d303
+checksumBuffer(start_addr=0x3000, size=0x1000) = f89d
+checksumBuffer(start_addr=0x4000, size=0x1000) = ea08
+checksumBuffer(start_addr=0x5000, size=0x80c) = 35c8
+Verify successful
+done in 0.013 seconds
+CPU reset.
+readWord(addr=0)=0x20007ffc
+readWord(addr=0xe000ed00)=0x410cc601
+readWord(addr=0x41002018)=0x10010305
+writeWord(addr=0xe000ed0c,value=0x5fa0004)
+Flashing firmware /tmp/fwuploader/firmwares/NINA/1.4.8/NINA.bin
+Flashing progress: 100%
+
+
+After update
+WiFiNINA firmware check.
+
+Firmware version installed: 1.4.8
+Latest firmware version available : 1.4.8
+
+Check result: PASSED
