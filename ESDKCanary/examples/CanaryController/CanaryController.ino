@@ -17,14 +17,14 @@
 
 #include <WiFiNINA.h>
 #include "arduino_secrets.h"
+#include <PubSubClient.h>
+#include "ArduinoJson.h"
 #include "ESDKCanary.h"
 #include <SPI.h>
 #include "epd2in9_V2.h"
 #include "epdpaint.h"
 #include "rslogo.h"
 #include "tombstone.h"
-#include <PubSubClient.h>
-#include "ArduinoJson.h"
 
 // CO2 levels - change to suit your environment
 #define NORMAL_CO2 400
@@ -34,18 +34,28 @@
 #define DEAD_CO2 4000
 #define DEMO_DEAD_CO2 5000
 
-// ESDK MQTT server name
-// You may need to substiture its IP address on your network
-//const char broker[] = "192.168.0.75";
-const char broker[] = "airquality";
-int        port     = 1883;
-
 // ESDK topic root
 #define TOPIC "airquality/#"
+#define MQTT_PACKET_SIZE 384 // bytes
 
 #define COLORED     0
 #define UNCOLORED   1
 
+// ESDK MQTT server name
+// You may need to substiture its IP address on your network
+//const char broker[] = "192.168.0.75";
+const char server[] = "airquality";
+int        port     = 1883;
+
+// Debug LEDs
+const int cbLed = 10; // Red - Changes state when callback is entered
+int cbLedState = LOW;
+
+const int wifiLed = 9;  // Green - On if connected
+const int mqttLed = 15;  // Yellow - On if connected
+const int jsonLed = 14;  // Red - Solid if a parser error occured
+
+// EPD
 unsigned char image[1024];
 Paint paint(image, 0, 0);    // width should be the multiple of 8
 Epd epd; // default reset: 8, dc: 9, cs: 10, busy: 7
@@ -56,8 +66,8 @@ char pass[] = SECRET_PASS;  // WPA key
 
 WiFiClient wifiClient;
 PubSubClient mqttClient(wifiClient);
-unsigned long lastReconnectMQTTAttempt = 0;
-unsigned long lastHeartBeat = 0;
+
+unsigned long lastReconnectAttempt;
 
 volatile int co2 = 400;
 volatile double temperature = 21.0;
@@ -77,8 +87,6 @@ enum States {THATS_BETTER, STUFFY, OPEN_WINDOW, PASS_OUT, DEAD, DEMO_DEAD};
 enum buttons {LEFT_BUTTON = 2, RIGHT_BUTTON = 3, DEMO_BUTTON = 9};
 volatile boolean audioOn = true;
 volatile boolean demoMode = false;
-
-int wifiState = WL_IDLE_STATUS;
 
 // Wing positions - adjust as required
 // If the servo is chattering at the end positions,
@@ -110,18 +118,16 @@ Adafruit_Soundboard sfx = Adafruit_Soundboard(&Serial1, NULL, SFX_RST);
 
 ESDKCanary myCanary = ESDKCanary(&sfx, &pwm, SERVO);
 
-const int ledPin = 10;// the number of the LED pin
-int ledState = LOW;
-
 void setup() {
-  // Setup buttons
-  pinMode(LEFT_BUTTON, INPUT);
-  pinMode(RIGHT_BUTTON, INPUT);
-  //  pinMode(DEMO_BUTTON, INPUT);
-  pinMode(ledPin, OUTPUT);
-  digitalWrite(ledPin, ledState);
-  //    pinMode(isrLED, OUTPUT);
-  //  digitalWrite(isrLED, HIGH);
+  pinMode(cbLed, OUTPUT);
+  digitalWrite(cbLed, LOW);
+  pinMode(wifiLed, OUTPUT);
+  digitalWrite(wifiLed, LOW);
+  pinMode(mqttLed, OUTPUT);
+  digitalWrite(mqttLed, LOW);
+  pinMode(jsonLed, OUTPUT);
+  digitalWrite(jsonLed, LOW);
+
   attachInterrupt(digitalPinToInterrupt(LEFT_BUTTON), leftButtonIsr, FALLING);
   // DEMO_BUTTON duplicates the RIGHT_BUTTON function - activates demo
   attachInterrupt(digitalPinToInterrupt(RIGHT_BUTTON), rightButtonIsr, FALLING);
@@ -161,12 +167,11 @@ void setup() {
 
   updateEPDGreeting();
 
-  Serial.print("Attempting to connect to the MQTT broker: ");
-  Serial.println(broker);
-
-  mqttClient.setServer(broker, port);
+  mqttClient.setBufferSize(MQTT_PACKET_SIZE);
+  mqttClient.setServer(server, 1883);
   mqttClient.setCallback(callback);
-  mqttClient.setBufferSize(384);
+
+  lastReconnectAttempt = 0;
 
   // Init sound board
   if (!sfx.reset()) {
@@ -186,43 +191,40 @@ void setup() {
 }
 
 void loop() {
-  unsigned long now = millis();
-  if (now - lastHeartBeat >= 1000) {
-    lastHeartBeat = now;
-    digitalWrite(ledPin, ledState);
-    ledState = !ledState;
+  //  if (demoMode) {
+  //    doDemo();
+  //  }
+
+  if (WiFi.status() != WL_CONNECTED) {
+    digitalWrite(wifiLed, LOW);
+    reconnectWiFi();
+    delay(2000);
+    digitalWrite(wifiLed, HIGH);
+    updateDisplayFlag = true;
   }
 
-  if (demoMode) {
-    doDemo();
-  }
-  else {
-    // Attempt to reconnect - Wifi.begin blocks until connect or failure
-    if (WiFi.status() != WL_CONNECTED) {
-      Serial.println("WiFi mode...");
-      reconnectWiFi();
-      updateDisplayFlag = true;
-    }
-
-    // Attempt to reconnect without blocking
-    if ((!mqttClient.connected()) && (WiFi.status() == WL_CONNECTED)) {
-      now = millis();
-      if (now - lastReconnectMQTTAttempt >= 5000) {
-        lastReconnectMQTTAttempt = now;
-        reconnectMQTT();
+  if (!mqttClient.connected()) {
+    digitalWrite(mqttLed, LOW);
+    unsigned long now = millis();
+    if (now - lastReconnectAttempt > 5000) {
+      lastReconnectAttempt = now;
+      // Attempt to reconnect
+      if (reconnectMQTT()) {
+        lastReconnectAttempt = 0;
+        digitalWrite(mqttLed, HIGH);
       }
     }
-    else {
-      mqttClient.loop();
-    }
-
-    if (updateDisplayFlag) {
-      updateDisplayFlag = false;
-      updateEPD();
-    }
-
-    updateState(co2);
+  } else {
+    // mqttClient connected
+    mqttClient.loop();
   }
+
+  if (updateDisplayFlag) {
+    updateDisplayFlag = false;
+    updateEPD();
+  }
+
+  updateState(co2);
 }
 
 void doDemo() {
@@ -233,7 +235,6 @@ void doDemo() {
   if (WiFi.status() == WL_CONNECTED) {
     mqttClient.disconnect();
     WiFi.disconnect();
-    wifiState = WiFi.status();
     delay(1000);
   }
 
@@ -333,12 +334,7 @@ void updateState(int co2) {
   }
 }
 
-void reconnectWiFi() {
-#ifdef DEBUG
-  Serial.print("Wifi Status: ");
-  Serial.println(WiFi.status());
-#endif
-  //  mqttClient.disconnect();
+int reconnectWiFi() {
   // WL_IDLE_STATUS     = 0
   // WL_NO_SSID_AVAIL   = 1
   // WL_SCAN_COMPLETED  = 2
@@ -346,42 +342,38 @@ void reconnectWiFi() {
   // WL_CONNECT_FAILED  = 4
   // WL_CONNECTION_LOST = 5
   // WL_DISCONNECTED    = 6
+
+  // Force a disconnect
   WiFi.disconnect();
   delay(1000);
   WiFi.begin(ssid, pass);
-  delay(1000);
-  wifiState = WiFi.status();
-  Serial.println(WiFi.localIP());
+  return WiFi.status();
 }
 
 boolean reconnectMQTT() {
-  Serial.println("Disconnecting MQTT");
-  //  mqttClient.disconnect();
-  Serial.print("Wifi state reconnectMQTT: ");
-  Serial.println(WiFi.status());
-  //  delay(2000);
-  if (mqttClient.connect("arduinoClient")) {
-    mqttClient.subscribe("airquality/#");
-    Serial.println("MQTT connected");
+  if (mqttClient.connect("arduinoNano")) {
+    // Once connected, publish an announcement...
+    mqttClient.publish("nano/alive", "Nano alive");
+    // ... and resubscribe
+    mqttClient.subscribe(TOPIC);
   }
   return mqttClient.connected();
 }
 
-// Update sensor variables each time a message is received
-void callback(char* topic, byte * payload, unsigned int length) {
-  //#ifdef DEBUG
-  //  Serial.print("Message arrived [");
-  //  Serial.print(topic);
-  //  Serial.print("] ");
-  //  for (int i = 0; i < length; i++) {
-  //    Serial.print((char)payload[i]);
-  //  }
-  //  Serial.println();
-  //#endif
-  // ESDK sends a large JSON payload
-  // - ensure you have enough memory allocated
-  StaticJsonDocument<384> doc;
-  deserializeJson(doc, payload, length);
+void callback(char* topic, byte* payload, unsigned int length) {
+  // handle message arrived
+  digitalWrite(cbLed, cbLedState);
+  cbLedState = !cbLedState;
+
+  // Parse ESDK payload
+  StaticJsonDocument<MQTT_PACKET_SIZE> doc;
+  DeserializationError error = deserializeJson(doc, payload, length);
+  //  error = DeserializationError::NoMemory;  // force an error for testing
+  if (error) {
+    // Turn on led if any deserialization errors occur
+    digitalWrite(jsonLed, HIGH);
+    return;
+  }
   co2 = doc["co2"]["co2"];
   temperature = doc["thv"]["temperature"];
   humidity = doc["thv"]["humidity"];
@@ -545,10 +537,10 @@ void updateEPD() {
   if (demoMode) {
     paint.DrawStringAt(0, 0, "Demo Mode", &Font16, COLORED);
   }
-  else if ((audioOn) && (wifiState == WL_CONNECTED)) {
+  else if ((audioOn) && (WiFi.status() == WL_CONNECTED)) {
     paint.DrawStringAt(0, 0, "Wifi Audio", &Font16, COLORED);
   }
-  else if (wifiState == WL_CONNECTED) {
+  else if (WiFi.status() == WL_CONNECTED) {
     paint.DrawStringAt(0, 0, "Wifi", &Font16, COLORED);
   }
   else if (audioOn) {

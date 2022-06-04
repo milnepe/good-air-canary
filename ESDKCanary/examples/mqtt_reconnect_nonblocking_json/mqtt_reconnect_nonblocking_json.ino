@@ -37,7 +37,7 @@ const int cbLed = 10; // Red - Changes state when callback is entered
 int cbLedState = LOW;
 
 const int wifiLed = 9;  // Green - On if connected
-const int mqttLed = 12;  // Yellow - On if connected
+const int mqttLed = 15;  // Yellow - On if connected
 const int jsonLed = 14;  // Red - Solid if a parser error occured
 
 // Store environmental data
