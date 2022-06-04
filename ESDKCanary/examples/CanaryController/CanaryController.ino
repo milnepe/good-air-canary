@@ -156,12 +156,8 @@ void setup() {
   epd.ClearFrameMemory(0xFF);   // bit set = white, bit reset = black
   epd.DisplayFrame();
 
-  /**
-      there are 2 memory areas embedded in the e-paper display
-      and once the display is refreshed, the memory area will be auto-toggled,
-      i.e. the next action of SetFrameMemory will set the other memory area
-      therefore you have to set the frame memory and refresh the display twice.
-  */
+  delay(5000);
+
   epd.SetFrameMemory_Base(RSLOGO);
   epd.DisplayFrame();
 
@@ -187,7 +183,7 @@ void setup() {
   myCanary.StartPos(WINGS_DOWN);
   Serial.println("Servo initialised");
 
-  delay(5000);
+  delay(1000);
 }
 
 void loop() {
