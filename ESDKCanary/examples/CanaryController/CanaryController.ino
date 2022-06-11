@@ -21,10 +21,7 @@
 #include "ArduinoJson.h"
 #include "ESDKCanary.h"
 #include <SPI.h>
-#include "epd2in9_V2.h"
-#include "epdpaint.h"
-#include "rslogo.h"
-#include "tombstone.h"
+#include "CanaryDisplay.h"
 
 // CO2 levels - change to suit your environment
 #define NORMAL_CO2 400
@@ -37,9 +34,6 @@
 // ESDK topic root
 #define TOPIC "airquality/#"
 #define MQTT_PACKET_SIZE 384 // bytes
-
-#define COLORED     0
-#define UNCOLORED   1
 
 // ESDK MQTT server name
 // You may need to substiture its IP address on your network
@@ -54,11 +48,6 @@ int cbLedState = LOW;
 const int wifiLed = 9;  // Green - On if connected
 const int mqttLed = 15;  // Yellow - On if connected
 const int jsonLed = 14;  // Red - Solid if a parser error occured
-
-// EPD
-unsigned char image[1024];
-Paint paint(image, 0, 0);    // width should be the multiple of 8
-Epd epd; // default reset: 8, dc: 9, cs: 10, busy: 7
 
 /////// Enter sensitive data in arduino_secrets.h
 char ssid[] = SECRET_SSID;  // Network SSID
@@ -76,7 +65,6 @@ volatile int tvoc = 100;
 volatile int pm = 1;
 
 volatile bool updateDisplayFlag = false;
-bool tombstoneFlag = false;
 int prevSensorValue = 0;
 
 //enum states {NORMAL, STUFFY, OPEN_WINDOW, PASS_OUT, THATS_BETTER, DEAD, DEMO_DEAD} state = NORMAL;
@@ -117,6 +105,8 @@ Adafruit_PWMServoDriver pwm = Adafruit_PWMServoDriver();
 Adafruit_Soundboard sfx = Adafruit_Soundboard(&Serial1, NULL, SFX_RST);
 
 ESDKCanary myCanary = ESDKCanary(&sfx, &pwm, SERVO);
+// Create Canary Display object
+CanaryDisplay epd = CanaryDisplay();
 
 void setup() {
   pinMode(cbLed, OUTPUT);
@@ -147,21 +137,8 @@ void setup() {
   }
   Serial.println("Serial1 attached");
 
-  if (epd.Init() != 0) {
-    Serial.print("e-Paper init failed ");
-    return;
-  }
-  Serial.println("EDP attached");
-
-  epd.ClearFrameMemory(0xFF);   // bit set = white, bit reset = black
-  epd.DisplayFrame();
-
-  delay(5000);
-
-  epd.SetFrameMemory_Base(RSLOGO);
-  epd.DisplayFrame();
-
-  updateEPDGreeting();
+  epd.initDisplay();
+  epd.showGreeting();
 
   mqttClient.setBufferSize(MQTT_PACKET_SIZE);
   mqttClient.setServer(server, 1883);
@@ -217,7 +194,7 @@ void loop() {
 
   if (updateDisplayFlag) {
     updateDisplayFlag = false;
-    updateEPD();
+    epd.updateDisplay(co2, temperature, humidity, tvoc, pm);
   }
 
   updateState(co2);
@@ -236,7 +213,7 @@ void doDemo() {
 
   for (int i = 0; i < sizeof(co2_array) / sizeof(co2_array[0]); i++) {
     co2 = co2_array[i];
-    updateEPD();
+    epd.updateDisplay(co2, temperature, humidity, tvoc, pm);
     updateState(co2);
     delay(5000);
   }
@@ -268,9 +245,9 @@ void updateCanary(States state) {
       Serial.println("Dead...");
       myCanary.Tweet(DEAD_TRACK, audioOn);
       myCanary.Dead(DEAD_POS, VFAST);
-      displayTombStone();
+      epd.showTombStone();
       delay(5000);
-      displayClear();
+      epd.clearDisplay();
       while (1);// Program ends!! Reboot
       break;
     case DEMO_DEAD:
@@ -279,9 +256,9 @@ void updateCanary(States state) {
       delay(2000);
       myCanary.Tweet(DEAD_TRACK, audioOn);
       myCanary.PassOut(PASS_OUT_POS, FAST);
-      displayTombStone();
+      epd.showTombStone();
       delay(5000);
-      displayClear();
+      epd.clearDisplay();
       myCanary.StartPos(WINGS_DOWN);
   }
 }
@@ -377,175 +354,4 @@ void callback(char* topic, byte* payload, unsigned int length) {
   pm = doc["pm"]["pm2.5"];
 
   updateDisplayFlag = true;
-}
-
-void updateEPDGreeting() {
-  paint.SetWidth(120);
-  paint.SetHeight(32);
-  paint.SetRotate(ROTATE_180);
-
-  paint.Clear(UNCOLORED);
-  paint.DrawStringAt(0, 4, " Good Air", &Font16, COLORED);
-  epd.SetFrameMemory_Partial(paint.GetImage(), 0, 140, paint.GetWidth(), paint.GetHeight());
-
-  paint.Clear(UNCOLORED);
-  paint.DrawStringAt(0, 4, "  Canary  ", &Font16, COLORED);
-  epd.SetFrameMemory_Partial(paint.GetImage(), 0, 120, paint.GetWidth(), paint.GetHeight());
-
-  paint.Clear(UNCOLORED);
-  paint.DrawStringAt(0, 4, "Concept:", &Font16, COLORED);
-  epd.SetFrameMemory_Partial(paint.GetImage(), 0, 80, paint.GetWidth(), paint.GetHeight());
-
-  paint.Clear(UNCOLORED);
-  paint.DrawStringAt(0, 4, "Jude Pullen", &Font16, COLORED);
-  epd.SetFrameMemory_Partial(paint.GetImage(), 0, 60, paint.GetWidth(), paint.GetHeight());
-
-  paint.Clear(UNCOLORED);
-  paint.DrawStringAt(0, 0, "Code:", &Font16, COLORED);
-  epd.SetFrameMemory_Partial(paint.GetImage(), 0, 20, paint.GetWidth(), paint.GetHeight());
-
-  paint.Clear(UNCOLORED);
-  paint.DrawStringAt(0, 0, "Pete Milne", &Font16, COLORED);
-  epd.SetFrameMemory_Partial(paint.GetImage(), 0, 0, paint.GetWidth(), paint.GetHeight());
-
-  epd.DisplayFrame_Partial();
-}
-
-void displayTombStone() {
-  Serial.println("Tombstone!...");
-  delay(2000);
-  if (epd.Init() != 0) {
-    Serial.print("e-Paper init failed ");
-    return;
-  }
-  epd.SetFrameMemory_Base(TOMBSTONE);
-  epd.DisplayFrame();
-  tombstoneFlag = false;
-  delay(5000);
-}
-
-void displayClear() {
-  Serial.println("Clearing display...");
-  delay(2000);
-  if (epd.Init() != 0) {
-    Serial.print("e-Paper init failed ");
-    return;
-  }
-  epd.ClearFrameMemory(0xFF);   // bit set = white, bit reset = black
-  epd.DisplayFrame();
-  delay(2000);
-  epd.ClearFrameMemory(0xFF);   // bit set = white, bit reset = black
-  epd.DisplayFrame();
-  delay(2000);
-}
-
-void updateEPD() {
-  if (co2 > 9999) {
-    co2 = 0;
-  }
-  char CO2_string[] = {'0', '0', '0', '0', 'p', 'p', 'm', '\0'};
-  CO2_string[0] = co2 / 100 / 10 + '0';
-  CO2_string[1] = co2 / 100 % 10 + '0';
-  CO2_string[2] = co2 % 100 / 10 + '0';
-  CO2_string[3] = co2 % 100 % 10 + '0';
-
-  int temp = 0;
-  if (temperature < 99.9) {
-    temp = (int)(temperature * 10);
-  }
-  char TEMP_string[] = {'0', '0', '.', '0', 'C', '\0'};
-  TEMP_string[0] = temp / 10 / 10 + '0';
-  TEMP_string[1] = temp / 10 % 10 + '0';
-  TEMP_string[3] = temp % 10 + '0';
-
-  int hum = 0;
-  if (humidity < 99.9) {
-    hum = (int)(humidity * 10);
-  }
-  char RH_string[] = {'0', '0', '.', '0', '%', '\0'};
-  RH_string[0] = hum / 10 / 10 + '0';
-  RH_string[1] = hum / 10 % 10 + '0';
-  RH_string[3] = hum % 10 + '0';
-
-  if (tvoc > 9999) {
-    tvoc = 0;
-  }
-  char TVOC_string[] = {'0', '0', '0', '0', 'p', 'p', 'm', '\0'};
-  TVOC_string[0] = tvoc / 100 / 10 + '0';
-  TVOC_string[1] = tvoc / 100 % 10 + '0';
-  TVOC_string[2] = tvoc % 100 / 10 + '0';
-  TVOC_string[3] = tvoc % 100 % 10 + '0';
-
-  if (pm > 9999) {
-    pm = 0;
-  }
-  char PART_string[] = {'0', '0', '0', '0', '\0'};
-  PART_string[0] = pm / 100 / 10 + '0';
-  PART_string[1] = pm / 100 % 10 + '0';
-  PART_string[2] = pm % 100 / 10 + '0';
-  PART_string[3] = pm % 100 % 10 + '0';
-
-  paint.SetWidth(120);
-  paint.SetHeight(32);
-  paint.SetRotate(ROTATE_180);
-
-  paint.Clear(UNCOLORED);
-  paint.DrawStringAt(0, 4, "CO2", &Font24, COLORED);
-  epd.SetFrameMemory_Partial(paint.GetImage(), 0, 260, paint.GetWidth(), paint.GetHeight());
-
-  paint.Clear(UNCOLORED);
-  paint.DrawStringAt(0, 4, CO2_string, &Font20, COLORED);
-  epd.SetFrameMemory_Partial(paint.GetImage(), 0, 240, paint.GetWidth(), paint.GetHeight());
-
-  paint.Clear(UNCOLORED);
-  paint.DrawStringAt(0, 4, "TEMP", &Font24, COLORED);
-  epd.SetFrameMemory_Partial(paint.GetImage(), 0, 210, paint.GetWidth(), paint.GetHeight());
-
-  paint.Clear(UNCOLORED);
-  paint.DrawStringAt(0, 4, TEMP_string, &Font20, COLORED);
-  epd.SetFrameMemory_Partial(paint.GetImage(), 0, 190, paint.GetWidth(), paint.GetHeight());
-
-  paint.Clear(UNCOLORED);
-  paint.DrawStringAt(0, 0, "RH", &Font24, COLORED);
-  epd.SetFrameMemory_Partial(paint.GetImage(), 0, 160, paint.GetWidth(), paint.GetHeight());
-
-  paint.Clear(UNCOLORED);
-  paint.DrawStringAt(0, 0, RH_string, &Font20, COLORED);
-  epd.SetFrameMemory_Partial(paint.GetImage(), 0, 140, paint.GetWidth(), paint.GetHeight());
-
-  paint.Clear(UNCOLORED);
-  paint.DrawStringAt(0, 0, "TVOC", &Font24, COLORED);
-  epd.SetFrameMemory_Partial(paint.GetImage(), 0, 110, paint.GetWidth(), paint.GetHeight());
-
-  paint.Clear(UNCOLORED);
-  paint.DrawStringAt(0, 0, TVOC_string, &Font20, COLORED);
-  epd.SetFrameMemory_Partial(paint.GetImage(), 0, 90, paint.GetWidth(), paint.GetHeight());
-
-  paint.Clear(UNCOLORED);
-  paint.DrawStringAt(0, 0, "PM2.5", &Font20, COLORED);
-  epd.SetFrameMemory_Partial(paint.GetImage(), 0, 60, paint.GetWidth(), paint.GetHeight());
-
-  paint.Clear(UNCOLORED);
-  paint.DrawStringAt(0, 0, PART_string, &Font20, COLORED);
-  epd.SetFrameMemory_Partial(paint.GetImage(), 0, 40, paint.GetWidth(), paint.GetHeight());
-
-  paint.Clear(UNCOLORED);
-  if (demoMode) {
-    paint.DrawStringAt(0, 0, "Demo Mode", &Font16, COLORED);
-  }
-  else if ((audioOn) && (WiFi.status() == WL_CONNECTED)) {
-    paint.DrawStringAt(0, 0, "Wifi Audio", &Font16, COLORED);
-  }
-  else if (WiFi.status() == WL_CONNECTED) {
-    paint.DrawStringAt(0, 0, "Wifi", &Font16, COLORED);
-  }
-  else if (audioOn) {
-    paint.DrawStringAt(0, 0, "Audio", &Font16, COLORED);
-  }
-  else {
-    paint.DrawStringAt(0, 0, "", &Font16, COLORED);
-  }
-  epd.SetFrameMemory_Partial(paint.GetImage(), 0, 0, paint.GetWidth(), paint.GetHeight());
-
-  epd.DisplayFrame_Partial();
 }
