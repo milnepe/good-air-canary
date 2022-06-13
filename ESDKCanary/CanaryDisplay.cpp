@@ -1,7 +1,5 @@
 #include "CanaryDisplay.h"
 
-CanaryDisplay::CanaryDisplay() {}
-
 void CanaryDisplay::initDisplay(void) {
   if (_epd.Init() != 0) {
     //Serial.print("e-Paper init failed ");
@@ -33,19 +31,19 @@ void CanaryDisplay::clearDisplay(void) {
   delay(2000);
   }
 
-void CanaryDisplay::updateDisplay(int co2, double temperature, double humidity, int tvoc, int pm) {
-  if (co2 > 9999) {
-    co2 = 0;
+void CanaryDisplay::updateDisplay() {
+  if (_canary->co2 > 9999) {
+    _canary->co2 = 0;
   }
   char CO2_string[] = {'0', '0', '0', '0', 'p', 'p', 'm', '\0'};
-  CO2_string[0] = co2 / 100 / 10 + '0';
-  CO2_string[1] = co2 / 100 % 10 + '0';
-  CO2_string[2] = co2 % 100 / 10 + '0';
-  CO2_string[3] = co2 % 100 % 10 + '0';
+  CO2_string[0] = _canary->co2 / 100 / 10 + '0';
+  CO2_string[1] = _canary->co2 / 100 % 10 + '0';
+  CO2_string[2] = _canary->co2 % 100 / 10 + '0';
+  CO2_string[3] = _canary->co2 % 100 % 10 + '0';
 
   int temp = 0;
-  if (temperature < 99.9) {
-    temp = (int)(temperature * 10);
+  if (_canary->temperature < 99.9) {
+    temp = (int)(_canary->temperature * 10);
   }
   char TEMP_string[] = {'0', '0', '.', '0', 'C', '\0'};
   TEMP_string[0] = temp / 10 / 10 + '0';
@@ -53,31 +51,31 @@ void CanaryDisplay::updateDisplay(int co2, double temperature, double humidity, 
   TEMP_string[3] = temp % 10 + '0';
 
   int hum = 0;
-  if (humidity < 99.9) {
-    hum = (int)(humidity * 10);
+  if (_canary->humidity < 99.9) {
+    hum = (int)(_canary->humidity * 10);
   }
   char RH_string[] = {'0', '0', '.', '0', '%', '\0'};
   RH_string[0] = hum / 10 / 10 + '0';
   RH_string[1] = hum / 10 % 10 + '0';
   RH_string[3] = hum % 10 + '0';
 
-  if (tvoc > 9999) {
-    tvoc = 0;
+  if (_canary->tvoc > 9999) {
+    _canary->tvoc = 0;
   }
   char TVOC_string[] = {'0', '0', '0', '0', 'p', 'p', 'm', '\0'};
-  TVOC_string[0] = tvoc / 100 / 10 + '0';
-  TVOC_string[1] = tvoc / 100 % 10 + '0';
-  TVOC_string[2] = tvoc % 100 / 10 + '0';
-  TVOC_string[3] = tvoc % 100 % 10 + '0';
+  TVOC_string[0] = _canary->tvoc / 100 / 10 + '0';
+  TVOC_string[1] = _canary->tvoc / 100 % 10 + '0';
+  TVOC_string[2] = _canary->tvoc % 100 / 10 + '0';
+  TVOC_string[3] = _canary->tvoc % 100 % 10 + '0';
 
-  if (pm > 9999) {
-    pm = 0;
+  if (_canary->pm > 9999) {
+    _canary->pm = 0;
   }
   char PART_string[] = {'0', '0', '0', '0', '\0'};
-  PART_string[0] = pm / 100 / 10 + '0';
-  PART_string[1] = pm / 100 % 10 + '0';
-  PART_string[2] = pm % 100 / 10 + '0';
-  PART_string[3] = pm % 100 % 10 + '0';
+  PART_string[0] = _canary->pm / 100 / 10 + '0';
+  PART_string[1] = _canary->pm / 100 % 10 + '0';
+  PART_string[2] = _canary->pm % 100 / 10 + '0';
+  PART_string[3] = _canary->pm % 100 % 10 + '0';
 
   _paint.SetWidth(120);
   _paint.SetHeight(32);

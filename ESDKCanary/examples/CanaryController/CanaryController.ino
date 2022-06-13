@@ -58,12 +58,6 @@ PubSubClient mqttClient(wifiClient);
 
 unsigned long lastReconnectAttempt;
 
-volatile int co2 = 400;
-volatile double temperature = 21.0;
-volatile double humidity = 40.0;
-volatile int tvoc = 100;
-volatile int pm = 1;
-
 volatile bool updateDisplayFlag = false;
 int prevSensorValue = 0;
 
@@ -106,7 +100,7 @@ Adafruit_Soundboard sfx = Adafruit_Soundboard(&Serial1, NULL, SFX_RST);
 
 ESDKCanary myCanary = ESDKCanary(&sfx, &pwm, SERVO);
 // Create Canary Display object
-CanaryDisplay epd = CanaryDisplay();
+CanaryDisplay epd(&myCanary);
 
 void setup() {
   pinMode(cbLed, OUTPUT);
@@ -194,10 +188,10 @@ void loop() {
 
   if (updateDisplayFlag) {
     updateDisplayFlag = false;
-    epd.updateDisplay(co2, temperature, humidity, tvoc, pm);
+    epd.updateDisplay();
   }
 
-  updateState(co2);
+  updateState(myCanary.co2);
 }
 
 void doDemo() {
@@ -211,10 +205,10 @@ void doDemo() {
     delay(1000);
   }
 
-  for (int i = 0; i < sizeof(co2_array) / sizeof(co2_array[0]); i++) {
-    co2 = co2_array[i];
-    epd.updateDisplay(co2, temperature, humidity, tvoc, pm);
-    updateState(co2);
+  for (unsigned int i = 0; i < sizeof(co2_array) / sizeof(co2_array[0]); i++) {
+    myCanary.co2 = co2_array[i];
+    epd.updateDisplay();
+    updateState(myCanary.co2);
     delay(5000);
   }
 }
@@ -256,7 +250,7 @@ void updateCanary(States state) {
       delay(2000);
       myCanary.Tweet(DEAD_TRACK, audioOn);
       myCanary.PassOut(PASS_OUT_POS, FAST);
-      epd.showTombStone();
+//      epd.showTombStone();
       delay(5000);
       epd.clearDisplay();
       myCanary.StartPos(WINGS_DOWN);
@@ -347,11 +341,11 @@ void callback(char* topic, byte* payload, unsigned int length) {
     digitalWrite(jsonLed, HIGH);
     return;
   }
-  co2 = doc["co2"]["co2"];
-  temperature = doc["thv"]["temperature"];
-  humidity = doc["thv"]["humidity"];
-  tvoc = doc["thv"]["vocIndex"];
-  pm = doc["pm"]["pm2.5"];
+  myCanary.co2 = doc["co2"]["co2"];
+  myCanary.temperature = doc["thv"]["temperature"];
+  myCanary.humidity = doc["thv"]["humidity"];
+  myCanary.tvoc = doc["thv"]["vocIndex"];
+  myCanary.pm = doc["pm"]["pm2.5"];
 
   updateDisplayFlag = true;
 }

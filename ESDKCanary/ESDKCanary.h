@@ -10,6 +10,11 @@ enum flap_speeds {VFAST = 1, FAST, SLOW, VSLOW};
 
 class ESDKCanary {
   public:
+    int co2 = 400;
+    double temperature = 21.0;
+    double humidity = 40.0;
+    int tvoc = 100;
+    int pm = 1;
     ESDKCanary(Adafruit_PWMServoDriver *pwm, int servo);
     ESDKCanary(Adafruit_Soundboard *sfx, Adafruit_PWMServoDriver *pwm, int servo);
  private:

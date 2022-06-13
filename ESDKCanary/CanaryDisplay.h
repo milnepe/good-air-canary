@@ -1,4 +1,5 @@
-//#include "DeviceDisplay.h"
+#include "DeviceDisplay.h"
+#include "ESDKCanary.h"
 #include "epd2in9_V2.h"
 #include "epdpaint.h"
 #include "tombstone.h"
@@ -10,15 +11,17 @@
 #define COLORED     0
 #define UNCOLORED   1
 
-class CanaryDisplay {
+class CanaryDisplay : public DeviceDisplay {
   public:
   unsigned char image[1024];
   Epd _epd; // default reset: 8, dc: 9, cs: 10, busy: 7
   Paint _paint = Paint(image, 0, 0);
-  CanaryDisplay(void);
+  ESDKCanary* _canary;
+  //CanaryDisplay(ESDKCanary* canary) {_canary = canary;}
+  CanaryDisplay(ESDKCanary* canary) : _canary(canary) {};
   void initDisplay(void);
   void clearDisplay(void);
-  void updateDisplay(int co2, double temperature, double humidity, int tvoc, int pm);
+  void updateDisplay(void);
   void showGreeting(void);
   void showTombStone(void);
 };
