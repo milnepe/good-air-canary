@@ -3,7 +3,7 @@
   that reacts to environmental CO2 levels
 
   Version: 3.0
-  Date: 8 May 2022
+  Date: 14 June 2022
   Author: Peter Milne
 
   Copyright 2022 Peter Milne
@@ -13,7 +13,7 @@
  ****************************************************/
 // Un-comment for debugging
 // In debug mode the system will not run until a serial monitor is attached!
-#define DEBUG
+//#define DEBUG
 
 #include <WiFiNINA.h>
 #include "arduino_secrets.h"
@@ -22,14 +22,6 @@
 #include "ESDKCanary.h"
 #include <SPI.h>
 #include "CanaryDisplay.h"
-
-// CO2 levels - change to suit your environment
-#define NORMAL_CO2 400
-#define STUFFY_CO2 1000  // CO2 ppm
-#define OPEN_WINDOW_CO2 2000
-#define PASS_OUT_CO2 3000
-#define DEAD_CO2 4000
-#define DEMO_DEAD_CO2 5000
 
 // ESDK topic root
 #define TOPIC "airquality/#"
@@ -61,29 +53,8 @@ unsigned long lastReconnectAttempt;
 volatile bool updateDisplayFlag = false;
 int prevSensorValue = 0;
 
-//enum states {NORMAL, STUFFY, OPEN_WINDOW, PASS_OUT, THATS_BETTER, DEAD, DEMO_DEAD} state = NORMAL;
-//enum States {NORMAL, STUFFY, OPEN_WINDOW, PASS_OUT, THATS_BETTER, DEAD, DEMO_DEAD};
-enum States {THATS_BETTER, STUFFY, OPEN_WINDOW, PASS_OUT, DEAD, DEMO_DEAD};
-
 // Button code
 enum buttons {LEFT_BUTTON = 2, RIGHT_BUTTON = 3, DEMO_BUTTON = 9};
-
-// Wing positions - adjust as required
-// If the servo is chattering at the end positions,
-// adjust the min or max value by 5ish
-#define WINGS_DOWN 485  // Max position
-#define WINGS_UP_A_BIT 400
-#define WINGS_UP_A_LOT 300
-#define PASS_OUT_POS 225
-#define DEAD_POS 150  // Min position
-
-// Audio track numbers
-#define YAWN_TRACK 0
-#define STUFFY_TRACK 1
-#define OPEN_WINDOW_TRACK 2
-#define PASS_OUT_TRACK 3
-#define THATS_BETTER_TRACK 4
-#define DEAD_TRACK 5
 
 #define SERVO 0  // Flapping servo
 #define SERVO_FREQ 50 // Analog servos run at ~50 Hz
@@ -149,10 +120,11 @@ void setup() {
   pwm.begin();
   pwm.setOscillatorFrequency(27000000);
   pwm.setPWMFreq(SERVO_FREQ);  // Analog servos run at ~50 Hz updates
+  delay(1000);
   myCanary.StartPos(WINGS_DOWN);
   Serial.println("Servo initialised");
 
-  delay(1000);
+  delay(5000);
 }
 
 void loop() {
@@ -193,12 +165,12 @@ void loop() {
     epd.updateDisplay();
   }
 
-  updateState(myCanary.co2);
+  myCanary.updateState();
 }
 
 void doDemo() {
   // Simulate co2 values
-  int  co2_array[] = {NORMAL_CO2, STUFFY_CO2, OPEN_WINDOW_CO2, PASS_OUT_CO2, DEMO_DEAD_CO2};
+  int  co2_array[] = {NORMAL_CO2, STUFFY_CO2, OPEN_WINDOW_CO2, PASS_OUT_CO2, DEAD_CO2};
 
   Serial.println("Entering demo mode");
   if (WiFi.status() == WL_CONNECTED) {
@@ -212,48 +184,8 @@ void doDemo() {
   for (unsigned int i = 0; i < sizeof(co2_array) / sizeof(co2_array[0]); i++) {
     myCanary.co2 = co2_array[i];
     epd.updateDisplay();
-    updateState(myCanary.co2);
+    myCanary.updateState();
     delay(5000);
-  }
-}
-
-void updateCanary(States state) {
-  switch (state) {
-    case THATS_BETTER:
-      Serial.println("That's better...");
-      myCanary.Tweet(THATS_BETTER_TRACK, myCanary.audioOn);
-      myCanary.StartPos(WINGS_DOWN);
-      break;
-    case STUFFY:
-      Serial.println("Stuffy...");
-      myCanary.Tweet(STUFFY_TRACK, myCanary.audioOn);
-      myCanary.Flap(WINGS_DOWN, WINGS_UP_A_BIT, VSLOW, 3);
-      break;
-    case OPEN_WINDOW:
-      Serial.println("Open a window...");
-      myCanary.Tweet(OPEN_WINDOW_TRACK, myCanary.audioOn);
-      myCanary.Flap(WINGS_DOWN, WINGS_UP_A_LOT, FAST, 4);
-      break;
-    case PASS_OUT:
-      Serial.println("Pass out...");
-      myCanary.Tweet(PASS_OUT_TRACK, myCanary.audioOn);
-      myCanary.PassOut(PASS_OUT_POS, FAST);
-      break;
-    case DEAD:
-      Serial.println("Dead...");
-      myCanary.Tweet(DEAD_TRACK, myCanary.audioOn);
-      myCanary.Dead(DEAD_POS, VFAST);
-      epd.showTombStone();
-      while (1);// Program ends!! Reboot
-      break;
-    case DEMO_DEAD:
-      Serial.println("Demo dead...");
-      myCanary.StartPos(WINGS_DOWN);
-      delay(2000);
-      myCanary.Tweet(DEAD_TRACK, myCanary.audioOn);
-      myCanary.PassOut(PASS_OUT_POS, FAST);
-      epd.showTombStone();
-      myCanary.StartPos(WINGS_DOWN);
   }
 }
 
@@ -269,37 +201,7 @@ void rightButtonIsr() {
   updateDisplayFlag = true;
 }
 
-// Sets the rules for changing state
-void updateState(int co2) {
-  static States previousState = DEAD;
-  States state = THATS_BETTER;
 
-  if ((previousState == PASS_OUT) && (co2 < PASS_OUT_CO2)) {
-    state = THATS_BETTER;
-  }
-  else if (co2 < STUFFY_CO2) {
-    state = THATS_BETTER;
-  }
-  else if (co2 < OPEN_WINDOW_CO2) {
-    state = STUFFY;
-  }
-  else if (co2 < PASS_OUT_CO2) {
-    state = OPEN_WINDOW;
-  }
-  else if (co2 < DEAD_CO2) {
-    state = PASS_OUT;
-  }
-  else if (co2 < DEMO_DEAD_CO2) {
-    state = DEAD;
-  }
-  else state = DEMO_DEAD;
-
-  // Update canary if state has changed
-  if ( state != previousState ) {
-    previousState = state;
-    updateCanary(state);
-  }
-}
 
 int reconnectWiFi() {
   // WL_IDLE_STATUS     = 0

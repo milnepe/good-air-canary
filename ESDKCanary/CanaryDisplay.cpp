@@ -2,7 +2,6 @@
 
 void CanaryDisplay::initDisplay(void) {
   if (_epd.Init() != 0) {
-    //Serial.print("e-Paper init failed ");
     return;
   }
   Serial.println("EDP attached");
@@ -10,7 +9,7 @@ void CanaryDisplay::initDisplay(void) {
   _epd.ClearFrameMemory(0xFF);   // bit set = white, bit reset = black
   _epd.DisplayFrame();
 
-  delay(5000);
+  delay(2000);
 
   _epd.SetFrameMemory_Base(RSLOGO);
   _epd.DisplayFrame();
@@ -18,13 +17,10 @@ void CanaryDisplay::initDisplay(void) {
 
 void CanaryDisplay::showTombStone() {
   if (_epd.Init() != 0) {
-    //Serial.print("e-Paper init failed ");
     return;
   }
-  _epd.ClearFrameMemory(0xFF);   // bit set = white, bit reset = black
-  _epd.DisplayFrame();
 
-  delay(5000);
+  delay(2000);
 
   _epd.SetFrameMemory_Base(TOMBSTONE);
   _epd.DisplayFrame();
@@ -33,6 +29,10 @@ void CanaryDisplay::showTombStone() {
 void CanaryDisplay::updateDisplay() {
   if (_canary->co2 > 9999) {
     _canary->co2 = 0;
+  }
+  if (_canary->co2 >= DEAD_CO2) {
+    showTombStone();
+    return;
   }
   char CO2_string[] = {'0', '0', '0', '0', 'p', 'p', 'm', '\0'};
   CO2_string[0] = _canary->co2 / 100 / 10 + '0';
@@ -77,48 +77,48 @@ void CanaryDisplay::updateDisplay() {
   PART_string[3] = _canary->pm % 100 % 10 + '0';
 
   _paint.SetWidth(120);
-  _paint.SetHeight(32);
+  _paint.SetHeight(40);
   _paint.SetRotate(ROTATE_180);
 
   _paint.Clear(UNCOLORED);
   _paint.DrawStringAt(0, 4, "CO2", &Font24, COLORED);
-  _epd.SetFrameMemory_Partial(_paint.GetImage(), 0, 260, _paint.GetWidth(), _paint.GetHeight());
+  _epd.SetFrameMemory_Partial(_paint.GetImage(), 0, 250, _paint.GetWidth(), _paint.GetHeight());
 
   _paint.Clear(UNCOLORED);
   _paint.DrawStringAt(0, 4, CO2_string, &Font20, COLORED);
-  _epd.SetFrameMemory_Partial(_paint.GetImage(), 0, 240, _paint.GetWidth(), _paint.GetHeight());
+  _epd.SetFrameMemory_Partial(_paint.GetImage(), 0, 230, _paint.GetWidth(), _paint.GetHeight());
 
   _paint.Clear(UNCOLORED);
   _paint.DrawStringAt(0, 4, "TEMP", &Font24, COLORED);
-  _epd.SetFrameMemory_Partial(_paint.GetImage(), 0, 210, _paint.GetWidth(), _paint.GetHeight());
+  _epd.SetFrameMemory_Partial(_paint.GetImage(), 0, 200, _paint.GetWidth(), _paint.GetHeight());
 
   _paint.Clear(UNCOLORED);
   _paint.DrawStringAt(0, 4, TEMP_string, &Font20, COLORED);
-  _epd.SetFrameMemory_Partial(_paint.GetImage(), 0, 190, _paint.GetWidth(), _paint.GetHeight());
+  _epd.SetFrameMemory_Partial(_paint.GetImage(), 0, 180, _paint.GetWidth(), _paint.GetHeight());
 
   _paint.Clear(UNCOLORED);
   _paint.DrawStringAt(0, 0, "RH", &Font24, COLORED);
-  _epd.SetFrameMemory_Partial(_paint.GetImage(), 0, 160, _paint.GetWidth(), _paint.GetHeight());
+  _epd.SetFrameMemory_Partial(_paint.GetImage(), 0, 150, _paint.GetWidth(), _paint.GetHeight());
 
   _paint.Clear(UNCOLORED);
   _paint.DrawStringAt(0, 0, RH_string, &Font20, COLORED);
-  _epd.SetFrameMemory_Partial(_paint.GetImage(), 0, 140, _paint.GetWidth(), _paint.GetHeight());
+  _epd.SetFrameMemory_Partial(_paint.GetImage(), 0, 130, _paint.GetWidth(), _paint.GetHeight());
 
   _paint.Clear(UNCOLORED);
   _paint.DrawStringAt(0, 0, "TVOC", &Font24, COLORED);
-  _epd.SetFrameMemory_Partial(_paint.GetImage(), 0, 110, _paint.GetWidth(), _paint.GetHeight());
+  _epd.SetFrameMemory_Partial(_paint.GetImage(), 0, 100, _paint.GetWidth(), _paint.GetHeight());
 
   _paint.Clear(UNCOLORED);
   _paint.DrawStringAt(0, 0, TVOC_string, &Font20, COLORED);
-  _epd.SetFrameMemory_Partial(_paint.GetImage(), 0, 90, _paint.GetWidth(), _paint.GetHeight());
+  _epd.SetFrameMemory_Partial(_paint.GetImage(), 0, 80, _paint.GetWidth(), _paint.GetHeight());
 
   _paint.Clear(UNCOLORED);
   _paint.DrawStringAt(0, 0, "PM2.5", &Font20, COLORED);
-  _epd.SetFrameMemory_Partial(_paint.GetImage(), 0, 60, _paint.GetWidth(), _paint.GetHeight());
+  _epd.SetFrameMemory_Partial(_paint.GetImage(), 0, 50, _paint.GetWidth(), _paint.GetHeight());
 
   _paint.Clear(UNCOLORED);
   _paint.DrawStringAt(0, 0, PART_string, &Font20, COLORED);
-  _epd.SetFrameMemory_Partial(_paint.GetImage(), 0, 40, _paint.GetWidth(), _paint.GetHeight());
+  _epd.SetFrameMemory_Partial(_paint.GetImage(), 0, 30, _paint.GetWidth(), _paint.GetHeight());
 
   _paint.Clear(UNCOLORED);
 
@@ -140,7 +140,7 @@ void CanaryDisplay::updateDisplay() {
   _epd.SetFrameMemory_Partial(_paint.GetImage(), 0, 0, _paint.GetWidth(), _paint.GetHeight());
 
   _epd.DisplayFrame_Partial();
-  }
+}
 
 void CanaryDisplay::showGreeting(void) {
   _paint.SetWidth(120);
