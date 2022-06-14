@@ -16,20 +16,19 @@ void CanaryDisplay::initDisplay(void) {
   _epd.DisplayFrame();
 }
 
-void CanaryDisplay::clearDisplay(void) {
-  //Serial.println("Clearing display...");
-  delay(2000);
+void CanaryDisplay::showTombStone() {
   if (_epd.Init() != 0) {
     //Serial.print("e-Paper init failed ");
     return;
   }
   _epd.ClearFrameMemory(0xFF);   // bit set = white, bit reset = black
   _epd.DisplayFrame();
-  delay(2000);
-  _epd.ClearFrameMemory(0xFF);   // bit set = white, bit reset = black
+
+  delay(5000);
+
+  _epd.SetFrameMemory_Base(TOMBSTONE);
   _epd.DisplayFrame();
-  delay(2000);
-  }
+}
 
 void CanaryDisplay::updateDisplay() {
   if (_canary->co2 > 9999) {
@@ -122,22 +121,22 @@ void CanaryDisplay::updateDisplay() {
   _epd.SetFrameMemory_Partial(_paint.GetImage(), 0, 40, _paint.GetWidth(), _paint.GetHeight());
 
   _paint.Clear(UNCOLORED);
-/*  if (demoMode) {
+
+  if (_canary->demoOn) {
     _paint.DrawStringAt(0, 0, "Demo Mode", &Font16, COLORED);
   }
-  else if ((audioOn) && (WiFi.status() == WL_CONNECTED)) {
+  else if (_canary->audioOn && _canary->wifiOn) {
     _paint.DrawStringAt(0, 0, "Wifi Audio", &Font16, COLORED);
   }
-  else if (WiFi.status() == WL_CONNECTED) {
+  else if (_canary->wifiOn) {
     _paint.DrawStringAt(0, 0, "Wifi", &Font16, COLORED);
   }
-  else if (audioOn) {
+  else if (_canary->audioOn) {
     _paint.DrawStringAt(0, 0, "Audio", &Font16, COLORED);
   }
   else {
     _paint.DrawStringAt(0, 0, "", &Font16, COLORED);
   }
-*/
   _epd.SetFrameMemory_Partial(_paint.GetImage(), 0, 0, _paint.GetWidth(), _paint.GetHeight());
 
   _epd.DisplayFrame_Partial();
@@ -173,17 +172,4 @@ void CanaryDisplay::showGreeting(void) {
   _epd.SetFrameMemory_Partial(_paint.GetImage(), 0, 0, _paint.GetWidth(), _paint.GetHeight());
 
   _epd.DisplayFrame_Partial();
-}
-
-void CanaryDisplay::showTombStone() {
-  //Serial.println("Tombstone!...");
-  delay(2000);
-  if (_epd.Init() != 0) {
-    //Serial.print("e-Paper init failed ");
-    return;
-  }
-  _epd.SetFrameMemory_Base(TOMBSTONE);
-  _epd.DisplayFrame();
-  //tombstoneFlag = false;
-  delay(5000);
 }

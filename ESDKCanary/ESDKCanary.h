@@ -15,6 +15,9 @@ class ESDKCanary {
     double humidity = 40.0;
     int tvoc = 100;
     int pm = 1;
+    volatile bool wifiOn = false;
+    volatile bool audioOn = true;
+    volatile bool demoOn = false;
     ESDKCanary(Adafruit_PWMServoDriver *pwm, int servo);
     ESDKCanary(Adafruit_Soundboard *sfx, Adafruit_PWMServoDriver *pwm, int servo);
  private:

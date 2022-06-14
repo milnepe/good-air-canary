@@ -67,8 +67,6 @@ enum States {THATS_BETTER, STUFFY, OPEN_WINDOW, PASS_OUT, DEAD, DEMO_DEAD};
 
 // Button code
 enum buttons {LEFT_BUTTON = 2, RIGHT_BUTTON = 3, DEMO_BUTTON = 9};
-volatile boolean audioOn = true;
-volatile boolean demoMode = false;
 
 // Wing positions - adjust as required
 // If the servo is chattering at the end positions,
@@ -145,7 +143,7 @@ void setup() {
     Serial.println("SFX board not found");
   }
   else Serial.println("SFX board attached");
-  myCanary.Tweet(YAWN_TRACK, audioOn);
+  myCanary.Tweet(YAWN_TRACK, myCanary.audioOn);
 
   // Init servo
   pwm.begin();
@@ -158,32 +156,36 @@ void setup() {
 }
 
 void loop() {
-  //  if (demoMode) {
-  //    doDemo();
-  //  }
-
-  if (WiFi.status() != WL_CONNECTED) {
-    digitalWrite(wifiLed, LOW);
-    reconnectWiFi();
-    delay(2000);
-    digitalWrite(wifiLed, HIGH);
-    updateDisplayFlag = true;
-  }
-
-  if (!mqttClient.connected()) {
-    digitalWrite(mqttLed, LOW);
-    unsigned long now = millis();
-    if (now - lastReconnectAttempt > 5000) {
-      lastReconnectAttempt = now;
-      // Attempt to reconnect
-      if (reconnectMQTT()) {
-        lastReconnectAttempt = 0;
-        digitalWrite(mqttLed, HIGH);
+  if (!myCanary.demoOn) {
+    if (WiFi.status() != WL_CONNECTED) {
+      digitalWrite(wifiLed, LOW);
+      myCanary.wifiOn = false;
+      reconnectWiFi();
+      delay(2000);
+      if (WiFi.status() == WL_CONNECTED) {
+        digitalWrite(wifiLed, HIGH);
+        myCanary.wifiOn = true;
       }
+      updateDisplayFlag = true;
+    }
+
+    if (!mqttClient.connected()) {
+      digitalWrite(mqttLed, LOW);
+      unsigned long now = millis();
+      if (now - lastReconnectAttempt > 5000) {
+        lastReconnectAttempt = now;
+        // Attempt to reconnect
+        if (reconnectMQTT()) {
+          lastReconnectAttempt = 0;
+          digitalWrite(mqttLed, HIGH);
+        }
+      }
+    } else {
+      // mqttClient connected
+      mqttClient.loop();
     }
   } else {
-    // mqttClient connected
-    mqttClient.loop();
+    doDemo();
   }
 
   if (updateDisplayFlag) {
@@ -201,7 +203,9 @@ void doDemo() {
   Serial.println("Entering demo mode");
   if (WiFi.status() == WL_CONNECTED) {
     mqttClient.disconnect();
+    digitalWrite(mqttLed, LOW);
     WiFi.disconnect();
+    digitalWrite(wifiLed, LOW);
     delay(1000);
   }
 
@@ -217,56 +221,52 @@ void updateCanary(States state) {
   switch (state) {
     case THATS_BETTER:
       Serial.println("That's better...");
-      myCanary.Tweet(THATS_BETTER_TRACK, audioOn);
+      myCanary.Tweet(THATS_BETTER_TRACK, myCanary.audioOn);
       myCanary.StartPos(WINGS_DOWN);
       break;
     case STUFFY:
       Serial.println("Stuffy...");
-      myCanary.Tweet(STUFFY_TRACK, audioOn);
+      myCanary.Tweet(STUFFY_TRACK, myCanary.audioOn);
       myCanary.Flap(WINGS_DOWN, WINGS_UP_A_BIT, VSLOW, 3);
       break;
     case OPEN_WINDOW:
       Serial.println("Open a window...");
-      myCanary.Tweet(OPEN_WINDOW_TRACK, audioOn);
+      myCanary.Tweet(OPEN_WINDOW_TRACK, myCanary.audioOn);
       myCanary.Flap(WINGS_DOWN, WINGS_UP_A_LOT, FAST, 4);
       break;
     case PASS_OUT:
       Serial.println("Pass out...");
-      myCanary.Tweet(PASS_OUT_TRACK, audioOn);
+      myCanary.Tweet(PASS_OUT_TRACK, myCanary.audioOn);
       myCanary.PassOut(PASS_OUT_POS, FAST);
       break;
     case DEAD:
       Serial.println("Dead...");
-      myCanary.Tweet(DEAD_TRACK, audioOn);
+      myCanary.Tweet(DEAD_TRACK, myCanary.audioOn);
       myCanary.Dead(DEAD_POS, VFAST);
       epd.showTombStone();
-      delay(5000);
-      epd.clearDisplay();
       while (1);// Program ends!! Reboot
       break;
     case DEMO_DEAD:
       Serial.println("Demo dead...");
       myCanary.StartPos(WINGS_DOWN);
       delay(2000);
-      myCanary.Tweet(DEAD_TRACK, audioOn);
+      myCanary.Tweet(DEAD_TRACK, myCanary.audioOn);
       myCanary.PassOut(PASS_OUT_POS, FAST);
-//      epd.showTombStone();
-      delay(5000);
-      epd.clearDisplay();
+      epd.showTombStone();
       myCanary.StartPos(WINGS_DOWN);
   }
 }
 
 // Toggle audio on / off
 void leftButtonIsr() {
-  audioOn = ! audioOn;
+  myCanary.audioOn = ! myCanary.audioOn;
   updateDisplayFlag = true;
 }
 
 // Enter demo mode
 void rightButtonIsr() {
-  demoMode = true;
-  audioOn = true;
+  myCanary.demoOn = true;
+  updateDisplayFlag = true;
 }
 
 // Sets the rules for changing state

@@ -17,10 +17,9 @@ class CanaryDisplay : public DeviceDisplay {
   Epd _epd; // default reset: 8, dc: 9, cs: 10, busy: 7
   Paint _paint = Paint(image, 0, 0);
   ESDKCanary* _canary;
-  //CanaryDisplay(ESDKCanary* canary) {_canary = canary;}
+
   CanaryDisplay(ESDKCanary* canary) : _canary(canary) {};
   void initDisplay(void);
-  void clearDisplay(void);
   void updateDisplay(void);
   void showGreeting(void);
   void showTombStone(void);
