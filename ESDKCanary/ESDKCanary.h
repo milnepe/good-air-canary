@@ -24,10 +24,10 @@
 // adjust the min or max value by 5ish
 #define WINGS_START 470
 #define WINGS_DOWN 480  // Max position
-#define WINGS_UP_A_BIT 400
-#define WINGS_UP_A_LOT 300
-#define PASS_OUT_POS 225
-#define DEAD_POS 150  // Min position
+#define WINGS_UP_A_BIT 420
+#define WINGS_UP_A_LOT 400
+#define PASS_OUT_POS 300
+#define DEAD_POS 2000  // Min position
 
 enum flap_speeds {VFAST = 1, FAST, SLOW, VSLOW};
 

@@ -51,6 +51,9 @@ States ESDKCanary::updateState() {
   if ((previousState == PASS_OUT) && (co2 < PASS_OUT_CO2)) {
     state = THATS_BETTER;
   }
+  else if ((previousState == OPEN_WINDOW) && (co2 < OPEN_WINDOW_CO2)) {
+    state = THATS_BETTER;
+  }
   else if (co2 < STUFFY_CO2) {
     state = THATS_BETTER;
   }

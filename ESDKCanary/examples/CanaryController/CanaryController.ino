@@ -13,7 +13,7 @@
  ****************************************************/
 // Un-comment for debugging
 // In debug mode the system will not run until a serial monitor is attached!
-//#define DEBUG
+#define DEBUG
 
 #include <WiFiNINA.h>
 #include "arduino_secrets.h"
