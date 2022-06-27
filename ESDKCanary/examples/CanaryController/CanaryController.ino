@@ -122,7 +122,7 @@ void setup() {
   pwm.setPWMFreq(SERVO_FREQ);  // Analog servos run at ~50 Hz updates
   delay(1000);
   myCanary.StartPos(WINGS_DOWN);
-  Serial.println("Servo initialised");
+  Serial.println("Wings down");
 
   delay(5000);
 }
